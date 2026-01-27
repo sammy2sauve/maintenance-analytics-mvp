@@ -13,22 +13,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Import database utilities
-try:
-    from db import (
-        get_daily_kpis,
-        get_weekly_kpis,
-        get_monthly_kpis,
-        table_exists,
-        DatabaseError
-    )
-except ImportError:
-    from backend.db import (
-        get_daily_kpis,
-        get_weekly_kpis,
-        get_monthly_kpis,
-        table_exists,
-        DatabaseError
-    )
+from .db import (
+    get_daily_kpis,
+    get_weekly_kpis,
+    get_monthly_kpis,
+    table_exists,
+    DatabaseError
+)
+
+
 
 
 # Pydantic models for API responses
@@ -37,24 +30,19 @@ class KPIRecord(BaseModel):
     id: Optional[int] = None
     kpi_name: str
     raw_value: Optional[float]
-    truesignal_value: Optional[float]
-    distortion_flag: bool
-    explanation_text: Optional[str] = None
+    true_signal_value: Optional[float]  # match db column
+    distortion: bool                     # match db column
+    explanation: Optional[str] = None    # match db column
     created_at: Optional[str] = None
 
 
 class DailyKPIRecord(KPIRecord):
-    """Model for daily KPI records."""
     period_date: str
 
-
 class WeeklyKPIRecord(KPIRecord):
-    """Model for weekly KPI records."""
     period_week: str
 
-
 class MonthlyKPIRecord(KPIRecord):
-    """Model for monthly KPI records."""
     period_month: str
 
 
