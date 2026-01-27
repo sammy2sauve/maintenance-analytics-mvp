@@ -15,22 +15,58 @@ from typing import Tuple, Optional
 from datetime import datetime
 import pandas as pd
 
-# Import project modules
+# Handle imports for both script and module execution
 try:
-    from load_and_map_data import load_and_prepare_data, DataLoadError
-    from calculate_kpis import calculate_all, KPICalculationError
-    from kpi_storage import (
+    # Try relative imports first (when run as module)
+    from .load_and_map_data import load_and_prepare_data, DataLoadError
+    from .calculate_kpis import calculate_all, KPICalculationError
+    from .kpi_storage import (
         create_kpi_tables,
         store_daily_kpis,
         store_weekly_kpis,
         store_monthly_kpis,
         KPIStorageError
     )
-except ImportError as e:
-    print(f"ERROR: Failed to import required modules: {e}")
-    print("Make sure all backend modules are in the same directory")
-    sys.exit(1)
-
+    from .predictive_analytics import (
+        predict_asset_failures,
+        optimize_pm_schedules,
+        generate_maintenance_insights,
+        PredictiveAnalyticsError
+    )
+    from .prediction_storage import (
+        store_failure_predictions,
+        store_pm_optimization_suggestions,
+        store_maintenance_insights,
+        PredictionStorageError
+    )
+except ImportError:
+    # Fall back to absolute imports (when run as script)
+    try:
+        from .load_and_map_data import load_and_prepare_data, DataLoadError
+        from .calculate_kpis import calculate_all, KPICalculationError
+        from .kpi_storage import (
+            create_kpi_tables,
+            store_daily_kpis,
+            store_weekly_kpis,
+            store_monthly_kpis,
+            KPIStorageError
+        )
+        from .predictive_analytics import (
+            predict_asset_failures,
+            optimize_pm_schedules,
+            generate_maintenance_insights,
+            PredictiveAnalyticsError
+        )
+        from .prediction_storage import (
+            store_failure_predictions,
+            store_pm_optimization_suggestions,
+            store_maintenance_insights,
+            PredictionStorageError
+        )
+    except ImportError as e:
+        print(f"ERROR: Failed to import required modules: {e}")
+        print("Make sure all backend modules are in the same directory")
+        sys.exit(1)
 
 class PipelineError(Exception):
     """Custom exception for pipeline execution errors."""
@@ -249,6 +285,62 @@ def store_kpis(
         log_step("STORE KPIs", "ERROR", str(e))
         raise PipelineError(f"Unexpected error during KPI storage: {str(e)}")
     
+def generate_and_store_predictions(df: pd.DataFrame) -> Tuple[int, int, int]:
+    """
+    Generate predictions and store them in database.
+    
+    Args:
+        df: Cleaned work orders DataFrame
+        
+    Returns:
+        Tuple of (predictions_stored, suggestions_stored, insights_stored)
+        
+    Raises:
+        PipelineError: If prediction generation or storage fails
+    """
+    log_step("GENERATE PREDICTIONS", "START")
+    
+    # Check if prediction modules are available
+    if predict_asset_failures is None:
+        log_step("GENERATE PREDICTIONS", "INFO", "Prediction modules not available, skipping")
+        return 0, 0, 0
+    
+    try:
+        # Generate failure predictions
+        predictions_df = predict_asset_failures(df)
+        log_step("GENERATE PREDICTIONS", "INFO", f"Generated {len(predictions_df)} failure predictions")
+        
+        # Generate PM optimization suggestions
+        suggestions_df = optimize_pm_schedules(df)
+        log_step("GENERATE PREDICTIONS", "INFO", f"Generated {len(suggestions_df)} PM suggestions")
+        
+        # Generate maintenance insights
+        insights_df = generate_maintenance_insights(df)
+        log_step("GENERATE PREDICTIONS", "INFO", f"Generated {len(insights_df)} insights")
+        
+        log_step("GENERATE PREDICTIONS", "SUCCESS", 
+                f"Generated predictions: {len(predictions_df)} failures, "
+                f"{len(suggestions_df)} suggestions, {len(insights_df)} insights")
+        
+        # Store predictions
+        log_step("STORE PREDICTIONS", "START")
+        
+        pred_rows = store_failure_predictions(predictions_df) if not predictions_df.empty else 0
+        sugg_rows = store_pm_optimization_suggestions(suggestions_df) if not suggestions_df.empty else 0
+        insight_rows = store_maintenance_insights(insights_df) if not insights_df.empty else 0
+        
+        log_step("STORE PREDICTIONS", "SUCCESS", 
+                f"Stored {pred_rows} predictions, {sugg_rows} suggestions, {insight_rows} insights")
+        
+        return pred_rows, sugg_rows, insight_rows
+        
+    except (PredictiveAnalyticsError, PredictionStorageError) as e:
+        log_step("GENERATE PREDICTIONS", "ERROR", str(e))
+        raise PipelineError(f"Prediction generation failed: {str(e)}")
+    except Exception as e:
+        log_step("GENERATE PREDICTIONS", "ERROR", str(e))
+        raise PipelineError(f"Unexpected error during prediction generation: {str(e)}")
+    
 def run_pipeline(verbose: bool = True) -> dict:
     """
     Execute the complete KPI calculation and storage pipeline.
@@ -259,15 +351,7 @@ def run_pipeline(verbose: bool = True) -> dict:
     3. Calculate all KPIs
     4. Categorize KPIs by period (daily/weekly/monthly)
     5. Store KPIs in database
-    
-    Args:
-        verbose: If True, print detailed progress logs
-        
-    Returns:
-        Dictionary with pipeline execution results and statistics
-        
-    Raises:
-        PipelineError: If any pipeline stage fails
+    6. Generate and store predictions
     """
     start_time = datetime.now()
     
@@ -286,6 +370,9 @@ def run_pipeline(verbose: bool = True) -> dict:
         'kpis_calculated': 0,
         'kpis_stored': 0,
         'distortions_detected': 0,
+        'predictions_stored': 0,
+        'suggestions_stored': 0,
+        'insights_stored': 0,
         'error': None
     }
     
@@ -310,6 +397,12 @@ def run_pipeline(verbose: bool = True) -> dict:
             daily_kpis, weekly_kpis, monthly_kpis
         )
         results['kpis_stored'] = daily_rows + weekly_rows + monthly_rows
+
+        # Stage 6: Generate and store predictions (NEW!)
+        pred_rows, sugg_rows, insight_rows = generate_and_store_predictions(df)
+        results['predictions_stored'] = pred_rows
+        results['suggestions_stored'] = sugg_rows
+        results['insights_stored'] = insight_rows
         
         # Mark success
         results['success'] = True
@@ -370,6 +463,14 @@ def print_summary(results: dict) -> None:
     print(f"  • KPIs calculated: {results['kpis_calculated']}")
     print(f"  • KPIs stored: {results['kpis_stored']}")
     print(f"  • Distortions detected: {results['distortions_detected']}")
+    print("Metrics:")
+    print(f"  • Work orders processed: {results['work_orders_processed']}")
+    print(f"  • KPIs calculated: {results['kpis_calculated']}")
+    print(f"  • KPIs stored: {results['kpis_stored']}")
+    print(f"  • Distortions detected: {results['distortions_detected']}")
+    print(f"  • Predictions stored: {results.get('predictions_stored', 0)}")
+    print(f"  • Suggestions stored: {results.get('suggestions_stored', 0)}")
+    print(f"  • Insights stored: {results.get('insights_stored', 0)}")
     
     if results['error']:
         print()

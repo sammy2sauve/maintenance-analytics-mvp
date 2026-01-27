@@ -23,10 +23,6 @@ from .db import (
 # Add this with your other imports
 from .api_predictions import router as predictions_router
 
-
-
-
-
 # Pydantic models for API responses
 class KPIRecord(BaseModel):
     """Base model for KPI records."""
