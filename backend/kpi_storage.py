@@ -182,20 +182,32 @@ def _prepare_kpi_data(df: pd.DataFrame, period_col: str) -> pd.DataFrame:
         # If period column is missing, use current date/week/month
         current_date = datetime.now()
         if period_col == 'period_date':
-            df_copy[period_col] = current_date.date()
+            df_copy[period_col] = current_date.strftime('%Y-%m-%d')
         elif period_col == 'period_week':
             # Format: YYYY-WW
             df_copy[period_col] = current_date.strftime('%Y-%W')
         elif period_col == 'period_month':
             # Format: YYYY-MM
             df_copy[period_col] = current_date.strftime('%Y-%m')
+    else:
+        # Convert period column to string if it's a datetime
+        if pd.api.types.is_datetime64_any_dtype(df_copy[period_col]):
+            if period_col == 'period_date':
+                df_copy[period_col] = df_copy[period_col].dt.strftime('%Y-%m-%d')
+            elif period_col == 'period_week':
+                df_copy[period_col] = df_copy[period_col].dt.strftime('%Y-%W')
+            elif period_col == 'period_month':
+                df_copy[period_col] = df_copy[period_col].dt.strftime('%Y-%m')
     
-    # Add created_at timestamp if not present
+    # Add created_at timestamp if not present, and convert to string
     if 'created_at' not in df_copy.columns:
-        df_copy['created_at'] = datetime.now()
+        df_copy['created_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        # Convert created_at to string if it's a Timestamp
+        if pd.api.types.is_datetime64_any_dtype(df_copy['created_at']):
+            df_copy['created_at'] = df_copy['created_at'].dt.strftime('%Y-%m-%d %H:%M:%S')
     
     return df_copy
-
 
 def store_daily_kpis(df: pd.DataFrame, db_path: Optional[Path] = None) -> int:
     """
@@ -325,7 +337,7 @@ def store_weekly_kpis(df: pd.DataFrame, db_path: Optional[Path] = None) -> int:
         
     except sqlite3.Error as e:
         raise KPIStorageError(f"Failed to store weekly KPIs: {str(e)}")
-    def store_monthly_kpis(df: pd.DataFrame, db_path: Optional[Path] = None) -> int:
+def store_monthly_kpis(df: pd.DataFrame, db_path: Optional[Path] = None) -> int:
     """
     Store monthly KPI results to database.
     

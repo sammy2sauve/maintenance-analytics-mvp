@@ -248,7 +248,8 @@ def store_kpis(
     except Exception as e:
         log_step("STORE KPIs", "ERROR", str(e))
         raise PipelineError(f"Unexpected error during KPI storage: {str(e)}")
-    def run_pipeline(verbose: bool = True) -> dict:
+    
+def run_pipeline(verbose: bool = True) -> dict:
     """
     Execute the complete KPI calculation and storage pipeline.
     

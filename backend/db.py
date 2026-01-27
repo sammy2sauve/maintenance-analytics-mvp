@@ -73,7 +73,7 @@ def get_db_connection(db_path: Optional[Path] = None):
 
 def dict_factory(cursor: sqlite3.Cursor, row: tuple) -> Dict[str, Any]:
     """
-    Convert SQLite row to dictionary.
+    Convert SQLite row to dictionary with type conversions.
     
     Args:
         cursor: SQLite cursor object
@@ -83,8 +83,16 @@ def dict_factory(cursor: sqlite3.Cursor, row: tuple) -> Dict[str, Any]:
         Dictionary with column names as keys
     """
     fields = [column[0] for column in cursor.description]
-    return {key: value for key, value in zip(fields, row)}
-
+    result = {}
+    
+    for key, value in zip(fields, row):
+        # Convert integer flags to boolean
+        if key == 'distortion_flag' and isinstance(value, int):
+            result[key] = bool(value)
+        else:
+            result[key] = value
+    
+    return result
 
 def execute_query(
     query: str,

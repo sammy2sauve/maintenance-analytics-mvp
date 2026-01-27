@@ -30,26 +30,25 @@ class KPIRecord(BaseModel):
     id: Optional[int] = None
     kpi_name: str
     raw_value: Optional[float]
-    true_signal_value: Optional[float]  # match db column
-    distortion: bool                     # match db column
-    explanation: Optional[str] = None    # match db column
+    truesignal_value: Optional[float]  # ← FIXED: was true_signal_value
+    distortion_flag: bool  # ← FIXED: was distortion
+    explanation_text: Optional[str] = None  # ← FIXED: was explanation
     created_at: Optional[str] = None
 
 
 class DailyKPIRecord(KPIRecord):
+    """Model for daily KPI records."""
     period_date: str
 
+
 class WeeklyKPIRecord(KPIRecord):
+    """Model for weekly KPI records."""
     period_week: str
 
+
 class MonthlyKPIRecord(KPIRecord):
+    """Model for monthly KPI records."""
     period_month: str
-
-
-class ErrorResponse(BaseModel):
-    """Model for error responses."""
-    error: str
-    detail: Optional[str] = None
 
 
 # Initialize FastAPI app
