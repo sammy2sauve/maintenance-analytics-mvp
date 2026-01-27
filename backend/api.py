@@ -20,6 +20,9 @@ from .db import (
     table_exists,
     DatabaseError
 )
+# Add this with your other imports
+from .api_predictions import router as predictions_router
+
 
 
 
@@ -57,7 +60,8 @@ app = FastAPI(
     description="Read-only API for accessing calculated maintenance KPIs",
     version="1.0.0"
 )
-
+# Include prediction routes
+app.include_router(predictions_router)
 
 @app.get("/", tags=["Root"])
 async def root() -> Dict[str, Any]:
