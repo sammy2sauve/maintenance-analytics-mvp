@@ -269,7 +269,7 @@ def store_maintenance_insights(
         for _, row in df_prepared.iterrows():
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO maintenance_insights (
+                Replace INTO maintenance_insights (
                     insight_type, title, description,
                     confidence_score, impact_level, affected_assets,
                     metric_value, insight_date, created_at

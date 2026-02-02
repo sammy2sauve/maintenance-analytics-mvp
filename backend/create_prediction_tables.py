@@ -77,7 +77,8 @@ def create_prediction_tables() -> None:
             affected_assets TEXT,
             metric_value REAL,
             insight_date DATE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(insight_type, title, insight_date)       
         )
     """)
     
