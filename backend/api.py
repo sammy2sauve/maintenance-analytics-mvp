@@ -10,7 +10,9 @@ Run with: uvicorn backend.api:app --reload
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
 
 # Import database utilities
 from .db import (
@@ -55,6 +57,15 @@ app = FastAPI(
     title="Maintenance Analytics KPI API",
     description="Read-only API for accessing calculated maintenance KPIs",
     version="1.0.0"
+)
+
+# ADD CORS MIDDLEWARE
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # Include prediction routes
 app.include_router(predictions_router)
