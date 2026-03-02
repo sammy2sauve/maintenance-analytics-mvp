@@ -7,6 +7,8 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [dailyKPIs, setDailyKPIs] = useState([]);
+  const [dateRange, setDateRange] = useState(30);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadDashboard();
@@ -63,6 +65,62 @@ function Dashboard() {
   const highRisk = dashboardData?.high_risk_assets || [];
   const costSavings = dashboardData?.cost_saving_opportunities || [];
 
+  const filteredInsights = dateRange
+    ? insights.filter(i => {
+        const d = new Date(i.insight_date);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - dateRange);
+        return d >= cutoff;
+      })
+    : insights;
+
+  const filteredHighRisk = highRisk
+    .filter(a => {
+      if (!dateRange) return true;
+      const d = new Date(a.prediction_date);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - dateRange);
+      return d >= cutoff;
+    })
+    .filter(a => !searchQuery || a.asset_id.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const exportToCSV = (data, filename, headers) => {
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(h => {
+        const key = h.toLowerCase().replace(/ /g, '_');
+        const val = row[key] ?? row[h] ?? '';
+        const str = String(val).replace(/"/g, '""');
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str}"` : str;
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportInsightsCSV = () => {
+    exportToCSV(
+      filteredInsights,
+      `insights_${new Date().toISOString().split('T')[0]}.csv`,
+      ['title', 'description', 'impact_level', 'confidence_score', 'insight_type', 'insight_date']
+    );
+  };
+
+  const exportHighRiskCSV = () => {
+    exportToCSV(
+      filteredHighRisk,
+      `high_risk_assets_${new Date().toISOString().split('T')[0]}.csv`,
+      ['asset_id', 'risk_level', 'failure_probability', 'recommendation', 'days_to_predicted_failure', 'prediction_date']
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -74,6 +132,36 @@ function Dashboard() {
           <p className="text-gray-600 mt-1">TrueSignal Intelligence Platform</p>
         </div>
       </header>
+
+      {/* Date Range Filter */}
+      <div className="bg-white shadow mb-6">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-600 mr-2">Time Range:</span>
+          {[7, 30, 90].map(days => (
+            <button
+              key={days}
+              onClick={() => setDateRange(days)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                dateRange === days
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Last {days} Days
+            </button>
+          ))}
+          <button
+            onClick={() => setDateRange(null)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              dateRange === null
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            All Time
+          </button>
+        </div>
+      </div>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Summary Cards */}
@@ -162,11 +250,17 @@ function Dashboard() {
         {/* Insights */}
         {insights.length > 0 && (
           <div className="bg-white rounded-lg shadow mb-8">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Latest Insights</h2>
+              <button
+                onClick={exportInsightsCSV}
+                className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
+              >
+                <span>&#x2B07;</span> Export CSV
+              </button>
             </div>
             <div className="p-6">
-              {insights.map((insight, index) => (
+              {filteredInsights.map((insight, index) => (
                 <div key={index} className="mb-4 last:mb-0 p-4 bg-blue-50 rounded-lg">
                   <h3 className="font-semibold text-gray-900 mb-2">{insight.title}</h3>
                   <p className="text-sm text-gray-600">{insight.description}</p>
@@ -183,12 +277,31 @@ function Dashboard() {
         {/* High Risk Assets */}
         {highRisk.length > 0 && (
           <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">High Risk Assets</h2>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search assets..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">&#x1F50D;</span>
+                </div>
+                <span className="text-sm text-gray-500">{filteredHighRisk.length} of {highRisk.length}</span>
+                <button
+                  onClick={exportHighRiskCSV}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
+                >
+                  <span>&#x2B07;</span> Export CSV
+                </button>
+              </div>
             </div>
             <div className="p-6">
               <div className="grid gap-4">
-                {highRisk.map((asset, index) => (
+                {filteredHighRisk.map((asset, index) => (
                   <div key={index} className="p-4 border border-red-200 rounded-lg bg-red-50">
                     <div className="flex justify-between items-start">
                       <div>
