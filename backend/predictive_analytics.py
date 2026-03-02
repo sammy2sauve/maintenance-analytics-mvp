@@ -810,6 +810,161 @@ def detect_asset_reliability_patterns(df: pd.DataFrame) -> List[Dict[str, Any]]:
         })
     
     return insights
+def detect_high_failure_assets(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Detect assets with high failure rates."""
+    insights = []
+    assets = df['asset_id'].dropna().unique()
+    
+    for asset_id in assets:
+        reactive_90d = count_recent_reactive_work(df, asset_id, days=90)
+        
+        if reactive_90d >= 5:  # 5+ failures in 3 months
+            mtbf = calculate_mtbf(df, asset_id)
+            
+            insights.append({
+                'insight_type': 'high_failure_rate',
+                'title': f'Asset {asset_id} has {reactive_90d} failures in past 90 days',
+                'description': f'This asset is experiencing frequent failures. '
+                              f'{"MTBF: " + str(int(mtbf)) + " days. " if mtbf else ""}'
+                              f'Recommend root cause analysis and potential replacement evaluation.',
+                'confidence_score': 0.95,
+                'impact_level': 'HIGH',
+                'affected_assets': asset_id,
+                'metric_value': float(reactive_90d)
+            })
+    
+    return sorted(insights, key=lambda x: x['metric_value'], reverse=True)[:3]
+
+
+def detect_cost_saving_opportunities(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Detect potential cost savings from optimizing maintenance."""
+    insights = []
+    reactive_df = df[df['type'].str.lower().str.contains('reactive', na=False)].copy()
+    
+    if len(reactive_df) == 0:
+        return insights
+    
+    avg_reactive_cost = 600
+    avg_pm_cost = 200
+    asset_reactive_counts = reactive_df['asset_id'].value_counts()
+    high_cost_assets = []
+    
+    for asset_id, reactive_count in asset_reactive_counts.items():
+        if reactive_count >= 4:
+            reactive_cost = reactive_count * avg_reactive_cost
+            estimated_pm_cost = 4 * avg_pm_cost
+            potential_savings = reactive_cost - estimated_pm_cost
+            
+            if potential_savings > 1000:
+                high_cost_assets.append({
+                    'asset_id': asset_id,
+                    'reactive_count': reactive_count,
+                    'savings': potential_savings
+                })
+    
+    if len(high_cost_assets) >= 3:
+        total_savings = sum(a['savings'] for a in high_cost_assets[:3])
+        asset_list = ', '.join([a['asset_id'] for a in high_cost_assets[:3]])
+        
+        insights.append({
+            'insight_type': 'cost_optimization',
+            'title': f'Implementing PM schedules could save ${total_savings:,.0f} annually',
+            'description': f'Assets {asset_list} have high reactive maintenance costs. '
+                          f'Implementing preventive maintenance schedules could reduce costs by '
+                          f'${total_savings:,.0f} per year.',
+            'confidence_score': 0.85,
+            'impact_level': 'HIGH',
+            'affected_assets': asset_list,
+            'metric_value': float(total_savings)
+        })
+    
+    return insights
+
+
+def detect_pm_coverage_gaps(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Detect assets without proper PM coverage."""
+    insights = []
+    all_assets = df['asset_id'].dropna().unique()
+    cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=180)
+    
+    recent_pm = df[
+        (df['type'].str.lower().str.contains('pm|preventive|preventative', na=False)) &
+        (pd.to_datetime(df['completion_date'], errors='coerce') >= cutoff_date)
+    ]
+    
+    assets_with_pm = set(recent_pm['asset_id'].unique())
+    assets_without_pm = set(all_assets) - assets_with_pm
+    
+    if len(assets_without_pm) >= 5:
+        coverage_rate = (len(assets_with_pm) / len(all_assets)) * 100
+        
+        insights.append({
+            'insight_type': 'pm_coverage_gap',
+            'title': f'{len(assets_without_pm)} assets have no PM in past 6 months',
+            'description': f'Only {coverage_rate:.0f}% of assets have received preventive maintenance '
+                          f'in the past 180 days. {len(assets_without_pm)} assets are at risk of '
+                          f'unexpected failures due to lack of PM coverage.',
+            'confidence_score': 0.90,
+            'impact_level': 'MEDIUM',
+            'affected_assets': ', '.join(list(assets_without_pm)[:5]),
+            'metric_value': float(len(assets_without_pm))
+        })
+    
+    return insights
+
+
+def detect_workload_imbalances(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Detect workload distribution issues."""
+    insights = []
+    tech_counts = df['technician'].value_counts()
+    
+    if len(tech_counts) >= 3:
+        total_work = len(df)
+        top_2_work = tech_counts.head(2).sum()
+        top_2_percentage = (top_2_work / total_work) * 100
+        
+        if top_2_percentage > 60:
+            insights.append({
+                'insight_type': 'workload_imbalance',
+                'title': f'2 technicians handling {top_2_percentage:.0f}% of all work orders',
+                'description': f'Workload is heavily concentrated on {tech_counts.index[0]} and '
+                              f'{tech_counts.index[1]}. Consider redistributing work to prevent '
+                              f'burnout and improve response times.',
+                'confidence_score': 0.80,
+                'impact_level': 'MEDIUM',
+                'metric_value': float(top_2_percentage)
+            })
+    
+    return insights
+
+
+def detect_recurring_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Detect recurring issues that suggest systemic problems."""
+    insights = []
+    reactive_df = df[df['type'].str.lower().str.contains('reactive', na=False)].copy()
+    
+    if len(reactive_df) < 10:
+        return insights
+    
+    asset_counts = reactive_df['asset_id'].value_counts()
+    recurring_assets = asset_counts[asset_counts >= 4]
+    
+    if len(recurring_assets) > 0:
+        worst_asset = recurring_assets.index[0]
+        event_count = recurring_assets.iloc[0]
+        
+        insights.append({
+            'insight_type': 'recurring_failure',
+            'title': f'Asset {worst_asset} has {event_count} repeated failures',
+            'description': f'This asset is experiencing recurring issues. Review failure patterns '
+                          f'and consider comprehensive inspection or replacement to address root cause.',
+            'confidence_score': 0.85,
+            'impact_level': 'HIGH',
+            'affected_assets': worst_asset,
+            'metric_value': float(event_count)
+        })
+    
+    return insights
 
 
 def generate_maintenance_insights(df: pd.DataFrame) -> pd.DataFrame:
@@ -843,6 +998,13 @@ def generate_maintenance_insights(df: pd.DataFrame) -> pd.DataFrame:
         all_insights.extend(detect_day_of_week_patterns(df))
         all_insights.extend(detect_technician_performance_patterns(df))
         all_insights.extend(detect_asset_reliability_patterns(df))
+
+        # NEW INSIGHT TYPES
+        all_insights.extend(detect_high_failure_assets(df))
+        all_insights.extend(detect_cost_saving_opportunities(df))
+        all_insights.extend(detect_pm_coverage_gaps(df))
+        all_insights.extend(detect_workload_imbalances(df))
+        all_insights.extend(detect_recurring_issues(df))
         
         # Add timestamp to all insights
         for insight in all_insights:
