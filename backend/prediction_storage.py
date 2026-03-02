@@ -349,9 +349,15 @@ def retrieve_failure_predictions(
         
         df = pd.read_sql_query(query, conn, params=params)
         conn.close()
-        
+
+        # Convert numeric columns to object dtype so NaN can become None
+        # (pandas keeps NaN in float64 columns even after .where(notna(), None))
+        for col in df.select_dtypes(include=['float64', 'int64']).columns:
+            df[col] = df[col].astype(object)
+        df = df.where(df.notna(), None)
+
         return df
-        
+
     except sqlite3.Error as e:
         raise PredictionStorageError(f"Failed to retrieve failure predictions: {str(e)}")
 
@@ -406,9 +412,14 @@ def retrieve_pm_optimization_suggestions(
         
         df = pd.read_sql_query(query, conn, params=params)
         conn.close()
-        
+
+        # Convert numeric columns to object dtype so NaN can become None
+        for col in df.select_dtypes(include=['float64', 'int64']).columns:
+            df[col] = df[col].astype(object)
+        df = df.where(df.notna(), None)
+
         return df
-        
+
     except sqlite3.Error as e:
         raise PredictionStorageError(f"Failed to retrieve PM suggestions: {str(e)}")
 
@@ -457,9 +468,14 @@ def retrieve_maintenance_insights(
         
         df = pd.read_sql_query(query, conn, params=params)
         conn.close()
-        
+
+        # Convert numeric columns to object dtype so NaN can become None
+        for col in df.select_dtypes(include=['float64', 'int64']).columns:
+            df[col] = df[col].astype(object)
+        df = df.where(df.notna(), None)
+
         return df
-        
+
     except sqlite3.Error as e:
         raise PredictionStorageError(f"Failed to retrieve insights: {str(e)}")
 
