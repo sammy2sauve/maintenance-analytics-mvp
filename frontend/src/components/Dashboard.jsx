@@ -1,12 +1,24 @@
 import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs } from '../services/api';
-import { AlertCircle, TrendingUp, DollarSign, Wrench, Activity } from 'lucide-react';
+import { AlertCircle, DollarSign, Wrench, Activity } from 'lucide-react';
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+
+const RISK_COLORS = {
+  LOW: '#22c55e',
+  MEDIUM: '#eab308',
+  HIGH: '#f97316',
+  CRITICAL: '#ef4444',
+};
 
 function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [dailyKPIs, setDailyKPIs] = useState([]);
+  const [failurePredictions, setFailurePredictions] = useState([]);
   const [dateRange, setDateRange] = useState(30);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -19,14 +31,15 @@ function Dashboard() {
       setLoading(true);
       setError(null);
 
-      // Load dashboard data and KPIs in parallel
-      const [dashboardRes, kpisRes] = await Promise.all([
+      const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
         getPredictions.dashboard(),
-        getKPIs.daily({ limit: 10 })
+        getKPIs.daily({ limit: 100 }),
+        getPredictions.failures({ limit: 1000 }),
       ]);
 
       setDashboardData(dashboardRes.data);
       setDailyKPIs(kpisRes.data);
+      setFailurePredictions(predictionsRes.data);
     } catch (err) {
       setError(err.message);
       console.error('Error loading dashboard:', err);
@@ -46,10 +59,10 @@ function Dashboard() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-red-600">
+        <div className="text-red-600 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-4" />
           <p>Error: {error}</p>
-          <button 
+          <button
             onClick={loadDashboard}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -65,6 +78,7 @@ function Dashboard() {
   const highRisk = dashboardData?.high_risk_assets || [];
   const costSavings = dashboardData?.cost_saving_opportunities || [];
 
+  // --- Date + search filters ---
   const filteredInsights = dateRange
     ? insights.filter(i => {
         const d = new Date(i.insight_date);
@@ -84,6 +98,7 @@ function Dashboard() {
     })
     .filter(a => !searchQuery || a.asset_id.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  // --- CSV export ---
   const exportToCSV = (data, filename, headers) => {
     const csvContent = [
       headers.join(','),
@@ -121,14 +136,51 @@ function Dashboard() {
     );
   };
 
+  // --- Chart data ---
+  const riskDistData = Object.entries(
+    failurePredictions.reduce((acc, p) => {
+      acc[p.risk_level] = (acc[p.risk_level] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(a.name) - ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(b.name));
+
+  const topFailingData = [...failurePredictions]
+    .sort((a, b) => b.failure_probability - a.failure_probability)
+    .slice(0, 15)
+    .map(p => ({ ...p, prob_pct: Math.round(p.failure_probability * 100) }));
+
+  const costSavingsData = costSavings
+    .filter(c => c.estimated_cost_savings > 0)
+    .slice(0, 10)
+    .map(c => ({
+      asset_id: c.asset_id,
+      savings: Math.round(c.estimated_cost_savings),
+      current_freq: c.current_pm_frequency_days,
+      suggested_freq: c.suggested_pm_frequency_days,
+    }));
+
+  const kpiByName = {};
+  dailyKPIs.forEach(k => { if (!kpiByName[k.kpi_name]) kpiByName[k.kpi_name] = k; });
+  const kpiCompareData = Object.values(kpiByName).map(k => ({
+    name: k.kpi_name
+      .replace(' (True)', '')
+      .replace('Mean Time to Complete', 'MTTC')
+      .replace('Labor Utilization', 'Labor Util')
+      .replace('Maintenance Load Stability', 'Maint Load')
+      .replace('Failure Recurrence Index', 'Failure Recur'),
+    raw: k.raw_value != null ? +k.raw_value.toFixed(2) : 0,
+    truesignal: k.truesignal_value != null ? +k.truesignal_value.toFixed(2) : 0,
+    distorted: k.distortion_flag,
+  }));
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Maintenance Analytics Dashboard
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900">Maintenance Analytics Dashboard</h1>
           <p className="text-gray-600 mt-1">TrueSignal Intelligence Platform</p>
         </div>
       </header>
@@ -166,33 +218,149 @@ function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total Assets"
-            value={summary.total_assets_monitored || 0}
-            icon={<Wrench className="w-6 h-6" />}
-            color="blue"
-          />
-          <StatCard
-            title="High Risk Assets"
-            value={summary.high_risk_assets || 0}
-            icon={<AlertCircle className="w-6 h-6" />}
-            color="red"
-          />
-          <StatCard
-            title="Critical Risk"
-            value={summary.critical_risk_assets || 0}
-            icon={<Activity className="w-6 h-6" />}
-            color="orange"
-          />
-          <StatCard
-            title="Cost Savings"
-            value={`$${(summary.total_cost_savings_potential || 0).toLocaleString()}`}
-            icon={<DollarSign className="w-6 h-6" />}
-            color="green"
-          />
+          <StatCard title="Total Assets" value={summary.total_assets_monitored || 0} icon={<Wrench className="w-6 h-6" />} color="blue" />
+          <StatCard title="High Risk Assets" value={summary.high_risk_assets || 0} icon={<AlertCircle className="w-6 h-6" />} color="red" />
+          <StatCard title="Critical Risk" value={summary.critical_risk_assets || 0} icon={<Activity className="w-6 h-6" />} color="orange" />
+          <StatCard title="Cost Savings" value={`$${(summary.total_cost_savings_potential || 0).toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="green" />
         </div>
 
-        {/* KPIs Section */}
+        {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Chart 1: Risk Distribution */}
+          <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Asset Risk Distribution</h2>
+            {riskDistData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={riskDistData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {riskDistData.map(entry => (
+                      <Cell key={entry.name} fill={RISK_COLORS[entry.name] || '#94a3b8'} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [value + ' assets', name]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+                No prediction data — run the pipeline first
+              </div>
+            )}
+          </div>
+
+          {/* Chart 2: Top Failing Assets */}
+          <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Failing Assets</h2>
+            {topFailingData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topFailingData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="asset_id" width={80} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-xs">
+                          <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
+                          <p>Probability: <span className="font-medium">{d.prob_pct}%</span></p>
+                          <p>Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
+                          <p className="text-gray-500 mt-1">{d.recommendation}</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]}>
+                    {topFailingData.map(entry => (
+                      <Cell key={entry.asset_id} fill={RISK_COLORS[entry.risk_level] || '#94a3b8'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+                No failure predictions available
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Chart 3: Cost Savings */}
+        {costSavingsData.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Cost Savings Opportunities — PM Optimization</h2>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="asset_id" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
+                        <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
+                        <p>Savings: <span className="font-medium text-green-600">${d.savings.toLocaleString()}/yr</span></p>
+                        <p>Current PM every {d.current_freq} days</p>
+                        <p>Suggested every {d.suggested_freq} days</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="savings" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Chart 4: KPI Raw vs TrueSignal */}
+        {kpiCompareData.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">KPI Raw vs TrueSignal Values</h2>
+            <p className="text-xs text-gray-500 mb-4">TrueSignal engine removes distortion from raw maintenance metrics</p>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={kpiCompareData} margin={{ left: 10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = kpiCompareData.find(k => k.name === label);
+                    return (
+                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
+                        <p className="font-semibold text-gray-900 mb-1">{label}</p>
+                        {payload.map(p => (
+                          <p key={p.dataKey} style={{ color: p.fill }}>
+                            {p.name}: {p.value}
+                          </p>
+                        ))}
+                        {d?.distorted && (
+                          <p className="text-orange-600 mt-1 font-medium">⚠ Distortion detected</p>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="raw" name="Raw" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="truesignal" name="TrueSignal" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* KPIs Table */}
         <div className="bg-white rounded-lg shadow mb-8">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Daily KPIs</h2>
@@ -202,41 +370,23 @@ function Dashboard() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      KPI Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Raw Value
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      TrueSignal Value
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Distortion
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KPI Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Raw Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TrueSignal Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distortion</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {dailyKPIs.map((kpi, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {kpi.kpi_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatValue(kpi.raw_value)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatValue(kpi.truesignal_value)}
-                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{kpi.kpi_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatValue(kpi.raw_value)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatValue(kpi.truesignal_value)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {kpi.distortion_flag ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Distorted
-                          </span>
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Distorted</span>
                         ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            Clean
-                          </span>
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Clean</span>
                         )}
                       </td>
                     </tr>
@@ -256,20 +406,24 @@ function Dashboard() {
                 onClick={exportInsightsCSV}
                 className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
               >
-                <span>&#x2B07;</span> Export CSV
+                &#x2B07; Export CSV
               </button>
             </div>
             <div className="p-6">
-              {filteredInsights.map((insight, index) => (
-                <div key={index} className="mb-4 last:mb-0 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-900 mb-2">{insight.title}</h3>
-                  <p className="text-sm text-gray-600">{insight.description}</p>
-                  <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                    <span>Impact: {insight.impact_level}</span>
-                    <span>Confidence: {(insight.confidence_score * 100).toFixed(0)}%</span>
+              {filteredInsights.length === 0 ? (
+                <p className="text-gray-500 text-sm">No insights in selected time range.</p>
+              ) : (
+                filteredInsights.map((insight, index) => (
+                  <div key={index} className="mb-4 last:mb-0 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="font-semibold text-gray-900 mb-2">{insight.title}</h3>
+                    <p className="text-sm text-gray-600">{insight.description}</p>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                      <span>Impact: {insight.impact_level}</span>
+                      <span>Confidence: {(insight.confidence_score * 100).toFixed(0)}%</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -285,7 +439,7 @@ function Dashboard() {
                     type="text"
                     placeholder="Search assets..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={e => setSearchQuery(e.target.value)}
                     className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">&#x1F50D;</span>
@@ -295,7 +449,7 @@ function Dashboard() {
                   onClick={exportHighRiskCSV}
                   className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
                 >
-                  <span>&#x2B07;</span> Export CSV
+                  &#x2B07; Export CSV
                 </button>
               </div>
             </div>
@@ -326,7 +480,6 @@ function Dashboard() {
   );
 }
 
-// Helper Components
 function StatCard({ title, value, icon, color }) {
   const colorClasses = {
     blue: 'bg-blue-500',
@@ -336,7 +489,7 @@ function StatCard({ title, value, icon, color }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-lg shadow p-6 transition-all duration-300 hover:shadow-lg">
       <div className="flex items-center">
         <div className={`${colorClasses[color]} p-3 rounded-lg text-white`}>
           {icon}
@@ -352,9 +505,7 @@ function StatCard({ title, value, icon, color }) {
 
 function formatValue(value) {
   if (value === null || value === undefined) return 'N/A';
-  if (typeof value === 'number') {
-    return value.toFixed(2);
-  }
+  if (typeof value === 'number') return value.toFixed(2);
   return value;
 }
 
