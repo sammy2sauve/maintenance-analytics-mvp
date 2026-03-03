@@ -7,6 +7,7 @@ PM optimization suggestions, and maintenance insights.
 These endpoints can be integrated into the main API or run standalone.
 """
 
+import math
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -32,6 +33,17 @@ except ImportError:
         update_suggestion_status,
         PredictionStorageError
     )
+
+
+def _clean_records(records: list) -> list:
+    """Replace NaN/inf float values with None so Pydantic can serialize them."""
+    cleaned = []
+    for row in records:
+        cleaned.append({
+            k: (None if isinstance(v, float) and not math.isfinite(v) else v)
+            for k, v in row.items()
+        })
+    return cleaned
 
 
 # Create API router
@@ -152,7 +164,7 @@ async def get_failure_predictions(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -200,7 +212,7 @@ async def get_high_risk_assets_endpoint(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -302,7 +314,7 @@ async def get_pm_optimization_suggestions_endpoint(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -349,7 +361,7 @@ async def get_cost_savings_endpoint(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -450,7 +462,7 @@ async def get_maintenance_insights_endpoint(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -492,7 +504,7 @@ async def get_high_impact_insights(
         if df.empty:
             return []
         
-        return df.to_dict('records')
+        return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
@@ -593,15 +605,15 @@ async def get_prediction_dashboard() -> Dict[str, Any]:
         
         # Get high-risk assets
         high_risk_df = get_high_risk_assets(min_probability=0.5, limit=10)
-        high_risk = high_risk_df.to_dict('records') if not high_risk_df.empty else []
+        high_risk = _clean_records(high_risk_df.to_dict('records')) if not high_risk_df.empty else []
         
         # Get cost savings
         savings_df = get_cost_saving_opportunities(min_savings=50, limit=10)
-        cost_savings = savings_df.to_dict('records') if not savings_df.empty else []
+        cost_savings = _clean_records(savings_df.to_dict('records')) if not savings_df.empty else []
         
         # Get insights
         insights_df = retrieve_maintenance_insights(limit=5)
-        insights = insights_df.to_dict('records') if not insights_df.empty else []
+        insights = _clean_records(insights_df.to_dict('records')) if not insights_df.empty else []
         
         return {
             "summary": summary,
