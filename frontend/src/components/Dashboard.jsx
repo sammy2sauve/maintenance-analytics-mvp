@@ -38,7 +38,14 @@ function Dashboard() {
       ]);
 
       setDashboardData(dashboardRes.data);
-      setDailyKPIs(kpisRes.data);
+      // Deduplicate: keep only the latest entry per kpi_name
+      const kpiMap = new Map();
+      (kpisRes.data || []).forEach(k => {
+        if (!kpiMap.has(k.kpi_name) || k.period_date > kpiMap.get(k.kpi_name).period_date) {
+          kpiMap.set(k.kpi_name, k);
+        }
+      });
+      setDailyKPIs(Array.from(kpiMap.values()).sort((a, b) => a.kpi_name.localeCompare(b.kpi_name)));
       setFailurePredictions(predictionsRes.data);
     } catch (err) {
       setError(err.message);
@@ -230,7 +237,7 @@ function Dashboard() {
           <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Asset Risk Distribution</h2>
             {riskDistData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={380}>
                 <PieChart>
                   <Pie
                     data={riskDistData}
@@ -239,6 +246,7 @@ function Dashboard() {
                     cx="50%"
                     cy="50%"
                     outerRadius={100}
+                    isAnimationActive={true}
                     label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   >
                     {riskDistData.map(entry => (
@@ -260,7 +268,7 @@ function Dashboard() {
           <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Failing Assets</h2>
             {topFailingData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={380}>
                 <BarChart data={topFailingData} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
@@ -270,16 +278,16 @@ function Dashboard() {
                       if (!active || !payload?.length) return null;
                       const d = payload[0].payload;
                       return (
-                        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-xs">
-                          <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
-                          <p>Probability: <span className="font-medium">{d.prob_pct}%</span></p>
-                          <p>Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
-                          <p className="text-gray-500 mt-1">{d.recommendation}</p>
+                        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs max-w-xs">
+                          <p className="font-semibold text-white mb-1">{d.asset_id}</p>
+                          <p className="text-slate-300">Probability: <span className="font-medium">{d.prob_pct}%</span></p>
+                          <p className="text-slate-300">Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
+                          <p className="text-slate-400 mt-1">{d.recommendation}</p>
                         </div>
                       );
                     }}
                   />
-                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]} animationDuration={800}>
                     {topFailingData.map(entry => (
                       <Cell key={entry.asset_id} fill={RISK_COLORS[entry.risk_level] || '#94a3b8'} />
                     ))}
@@ -298,27 +306,33 @@ function Dashboard() {
         {costSavingsData.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Cost Savings Opportunities — PM Optimization</h2>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="asset_id" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11 }} />
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
+                <defs>
+                  <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                <XAxis dataKey="asset_id" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <Tooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
-                        <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
-                        <p>Savings: <span className="font-medium text-green-600">${d.savings.toLocaleString()}/yr</span></p>
-                        <p>Current PM every {d.current_freq} days</p>
-                        <p>Suggested every {d.suggested_freq} days</p>
+                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                        <p className="font-semibold text-white mb-1">{d.asset_id}</p>
+                        <p className="text-slate-300">Savings: <span className="font-medium text-green-400">${d.savings.toLocaleString()}/yr</span></p>
+                        <p className="text-slate-300">Current PM every {d.current_freq} days</p>
+                        <p className="text-slate-300">Suggested every {d.suggested_freq} days</p>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="savings" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#costGradient)" strokeWidth={2} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -338,23 +352,23 @@ function Dashboard() {
                     if (!active || !payload?.length) return null;
                     const d = kpiCompareData.find(k => k.name === label);
                     return (
-                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
-                        <p className="font-semibold text-gray-900 mb-1">{label}</p>
+                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                        <p className="font-semibold text-white mb-1">{label}</p>
                         {payload.map(p => (
-                          <p key={p.dataKey} style={{ color: p.fill }}>
+                          <p key={p.dataKey} className="text-slate-300" style={{ color: p.fill }}>
                             {p.name}: {p.value}
                           </p>
                         ))}
                         {d?.distorted && (
-                          <p className="text-orange-600 mt-1 font-medium">⚠ Distortion detected</p>
+                          <p className="text-orange-400 mt-1 font-medium">⚠ Distortion detected</p>
                         )}
                       </div>
                     );
                   }}
                 />
                 <Legend />
-                <Bar dataKey="raw" name="Raw" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="truesignal" name="TrueSignal" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="raw" name="Raw" fill="#475569" radius={[4, 4, 0, 0]} animationDuration={800} />
+                <Bar dataKey="truesignal" name="TrueSignal" fill="#818cf8" radius={[4, 4, 0, 0]} animationDuration={800} />
               </BarChart>
             </ResponsiveContainer>
           </div>
