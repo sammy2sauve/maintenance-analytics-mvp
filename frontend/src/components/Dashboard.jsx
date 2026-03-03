@@ -3,15 +3,22 @@ import { getPredictions, getKPIs } from '../services/api';
 import { AlertCircle, DollarSign, Wrench, Activity } from 'lucide-react';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area,
 } from 'recharts';
 
 const RISK_COLORS = {
-  LOW: '#22c55e',
-  MEDIUM: '#eab308',
-  HIGH: '#f97316',
-  CRITICAL: '#ef4444',
+  LOW: '#34d399',
+  MEDIUM: '#fbbf24',
+  HIGH: '#fb923c',
+  CRITICAL: '#f87171',
 };
+
+const DarkTooltip = ({ children }) => (
+  <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+    {children}
+  </div>
+);
 
 function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -38,7 +45,16 @@ function Dashboard() {
       ]);
 
       setDashboardData(dashboardRes.data);
-      setDailyKPIs(kpisRes.data);
+
+      // Deduplicate: keep only the latest entry per kpi_name
+      const kpiMap = new Map();
+      (kpisRes.data || []).forEach(k => {
+        if (!kpiMap.has(k.kpi_name) || k.period_date > kpiMap.get(k.kpi_name).period_date) {
+          kpiMap.set(k.kpi_name, k);
+        }
+      });
+      setDailyKPIs(Array.from(kpiMap.values()).sort((a, b) => a.kpi_name.localeCompare(b.kpi_name)));
+
       setFailurePredictions(predictionsRes.data);
     } catch (err) {
       setError(err.message);
@@ -50,21 +66,21 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl">Loading dashboard...</div>
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <div className="text-slate-300 text-xl animate-pulse">Loading dashboard...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-red-600 text-center">
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <div className="text-red-400 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-4" />
           <p>Error: {error}</p>
           <button
             onClick={loadDashboard}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
           >
             Retry
           </button>
@@ -176,19 +192,25 @@ function Dashboard() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Maintenance Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-1">TrueSignal Intelligence Platform</p>
+      <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-800/30 shadow-2xl">
+        <div className="w-full px-8 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white tracking-tight">Maintenance Analytics</h1>
+            <p className="text-indigo-300 mt-1 text-sm font-medium">TrueSignal Intelligence Platform</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span className="text-emerald-300 text-sm font-medium">Live</span>
+          </div>
         </div>
       </header>
 
       {/* Date Range Filter */}
-      <div className="bg-white shadow mb-6">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-600 mr-2">Time Range:</span>
+      <div className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 mb-6 sticky top-0 z-10">
+        <div className="w-full px-8 py-3 flex items-center gap-3">
+          <span className="text-sm font-medium text-slate-400 mr-2">Time Range:</span>
           {[7, 30, 90].map(days => (
             <button
               key={days}
@@ -196,7 +218,7 @@ function Dashboard() {
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 dateRange === days
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               Last {days} Days
@@ -207,7 +229,7 @@ function Dashboard() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               dateRange === null
                 ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
             All Time
@@ -215,9 +237,9 @@ function Dashboard() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="w-full px-8 py-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard title="Total Assets" value={summary.total_assets_monitored || 0} icon={<Wrench className="w-6 h-6" />} color="blue" />
           <StatCard title="High Risk Assets" value={summary.high_risk_assets || 0} icon={<AlertCircle className="w-6 h-6" />} color="red" />
           <StatCard title="Critical Risk" value={summary.critical_risk_assets || 0} icon={<Activity className="w-6 h-6" />} color="orange" />
@@ -225,12 +247,12 @@ function Dashboard() {
         </div>
 
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {/* Chart 1: Risk Distribution */}
-          <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Asset Risk Distribution</h2>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-white mb-4">Asset Risk Distribution</h2>
             {riskDistData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={380}>
                 <PieChart>
                   <Pie
                     data={riskDistData}
@@ -238,48 +260,61 @@ function Dashboard() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={100}
+                    outerRadius={120}
+                    isAnimationActive={true}
+                    animationDuration={800}
                     label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    labelLine={{ stroke: '#94a3b8' }}
                   >
                     {riskDistData.map(entry => (
                       <Cell key={entry.name} fill={RISK_COLORS[entry.name] || '#94a3b8'} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value, name) => [value + ' assets', name]} />
-                  <Legend />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                          <p className="font-semibold text-white mb-1">{payload[0].name}</p>
+                          <p className="text-slate-300">{payload[0].value} assets</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend formatter={v => <span style={{ color: '#94a3b8' }}>{v}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+              <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
                 No prediction data — run the pipeline first
               </div>
             )}
           </div>
 
           {/* Chart 2: Top Failing Assets */}
-          <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Failing Assets</h2>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-white mb-4">Top Failing Assets</h2>
             {topFailingData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={380}>
                 <BarChart data={topFailingData} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="asset_id" width={80} tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
+                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
+                  <YAxis type="category" dataKey="asset_id" width={80} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0].payload;
                       return (
-                        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-xs">
-                          <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
-                          <p>Probability: <span className="font-medium">{d.prob_pct}%</span></p>
-                          <p>Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
-                          <p className="text-gray-500 mt-1">{d.recommendation}</p>
+                        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs max-w-xs">
+                          <p className="font-semibold text-white mb-1">{d.asset_id}</p>
+                          <p className="text-slate-300">Probability: <span className="font-medium text-white">{d.prob_pct}%</span></p>
+                          <p className="text-slate-300">Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
+                          <p className="text-slate-400 mt-1">{d.recommendation}</p>
                         </div>
                       );
                     }}
                   />
-                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]} animationDuration={800}>
                     {topFailingData.map(entry => (
                       <Cell key={entry.asset_id} fill={RISK_COLORS[entry.risk_level] || '#94a3b8'} />
                     ))}
@@ -287,7 +322,7 @@ function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+              <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
                 No failure predictions available
               </div>
             )}
@@ -296,97 +331,103 @@ function Dashboard() {
 
         {/* Chart 3: Cost Savings */}
         {costSavingsData.length > 0 && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Cost Savings Opportunities — PM Optimization</h2>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="asset_id" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11 }} />
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-white mb-4">Cost Savings Opportunities — PM Optimization</h2>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
+                <defs>
+                  <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                <XAxis dataKey="asset_id" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
+                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
                 <Tooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
-                        <p className="font-semibold text-gray-900 mb-1">{d.asset_id}</p>
-                        <p>Savings: <span className="font-medium text-green-600">${d.savings.toLocaleString()}/yr</span></p>
-                        <p>Current PM every {d.current_freq} days</p>
-                        <p>Suggested every {d.suggested_freq} days</p>
+                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                        <p className="font-semibold text-white mb-1">{d.asset_id}</p>
+                        <p className="text-slate-300">Savings: <span className="font-medium text-emerald-400">${d.savings.toLocaleString()}/yr</span></p>
+                        <p className="text-slate-400">Current PM every {d.current_freq} days</p>
+                        <p className="text-slate-400">Suggested every {d.suggested_freq} days</p>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="savings" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#costGradient)" strokeWidth={2} animationDuration={800} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
 
         {/* Chart 4: KPI Raw vs TrueSignal */}
         {kpiCompareData.length > 0 && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">KPI Raw vs TrueSignal Values</h2>
-            <p className="text-xs text-gray-500 mb-4">TrueSignal engine removes distortion from raw maintenance metrics</p>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-white mb-1">KPI Raw vs TrueSignal Values</h2>
+            <p className="text-xs text-slate-500 mb-4">TrueSignal engine removes distortion from raw maintenance metrics</p>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={kpiCompareData} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const d = kpiCompareData.find(k => k.name === label);
                     return (
-                      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs">
-                        <p className="font-semibold text-gray-900 mb-1">{label}</p>
+                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                        <p className="font-semibold text-white mb-1">{label}</p>
                         {payload.map(p => (
-                          <p key={p.dataKey} style={{ color: p.fill }}>
+                          <p key={p.dataKey} style={{ color: p.fill }} className="text-slate-300">
                             {p.name}: {p.value}
                           </p>
                         ))}
                         {d?.distorted && (
-                          <p className="text-orange-600 mt-1 font-medium">⚠ Distortion detected</p>
+                          <p className="text-orange-400 mt-1 font-medium">⚠ Distortion detected</p>
                         )}
                       </div>
                     );
                   }}
                 />
-                <Legend />
-                <Bar dataKey="raw" name="Raw" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="truesignal" name="TrueSignal" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Legend formatter={v => <span style={{ color: '#94a3b8' }}>{v}</span>} />
+                <Bar dataKey="raw" name="Raw" fill="#475569" radius={[4, 4, 0, 0]} animationDuration={800} />
+                <Bar dataKey="truesignal" name="TrueSignal" fill="#818cf8" radius={[4, 4, 0, 0]} animationDuration={800} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
 
         {/* KPIs Table */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Daily KPIs</h2>
+        <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-6">
+          <div className="px-6 py-4 border-b border-slate-700/50">
+            <h2 className="text-xl font-semibold text-white">Daily KPIs</h2>
           </div>
           <div className="p-6">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KPI Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Raw Value</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TrueSignal Value</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distortion</th>
+              <table className="min-w-full divide-y divide-slate-700/50">
+                <thead>
+                  <tr className="bg-slate-800/60">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">KPI Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Raw Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">TrueSignal Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Distortion</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-700/50">
                   {dailyKPIs.map((kpi, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{kpi.kpi_name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatValue(kpi.raw_value)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatValue(kpi.truesignal_value)}</td>
+                    <tr key={index} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200">{kpi.kpi_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{formatValue(kpi.raw_value)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-300 font-medium">{formatValue(kpi.truesignal_value)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {kpi.distortion_flag ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Distorted</span>
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-900/50 text-red-300 border border-red-700/50">Distorted</span>
                         ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Clean</span>
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">Clean</span>
                         )}
                       </td>
                     </tr>
@@ -399,27 +440,27 @@ function Dashboard() {
 
         {/* Insights */}
         {insights.length > 0 && (
-          <div className="bg-white rounded-lg shadow mb-8">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Latest Insights</h2>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-6">
+            <div className="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Latest Insights</h2>
               <button
                 onClick={exportInsightsCSV}
-                className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 rounded-lg text-sm hover:bg-emerald-900/60 transition-colors"
               >
                 &#x2B07; Export CSV
               </button>
             </div>
             <div className="p-6">
               {filteredInsights.length === 0 ? (
-                <p className="text-gray-500 text-sm">No insights in selected time range.</p>
+                <p className="text-slate-500 text-sm">No insights in selected time range.</p>
               ) : (
                 filteredInsights.map((insight, index) => (
-                  <div key={index} className="mb-4 last:mb-0 p-4 bg-blue-50 rounded-lg">
-                    <h3 className="font-semibold text-gray-900 mb-2">{insight.title}</h3>
-                    <p className="text-sm text-gray-600">{insight.description}</p>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      <span>Impact: {insight.impact_level}</span>
-                      <span>Confidence: {(insight.confidence_score * 100).toFixed(0)}%</span>
+                  <div key={index} className="mb-4 last:mb-0 p-4 bg-indigo-950/50 border border-indigo-800/30 rounded-xl">
+                    <h3 className="font-semibold text-white mb-2">{insight.title}</h3>
+                    <p className="text-sm text-slate-400">{insight.description}</p>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                      <span>Impact: <span className="text-indigo-300">{insight.impact_level}</span></span>
+                      <span>Confidence: <span className="text-indigo-300">{(insight.confidence_score * 100).toFixed(0)}%</span></span>
                     </div>
                   </div>
                 ))
@@ -430,9 +471,9 @@ function Dashboard() {
 
         {/* High Risk Assets */}
         {highRisk.length > 0 && (
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">High Risk Assets</h2>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">High Risk Assets</h2>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <input
@@ -440,33 +481,33 @@ function Dashboard() {
                     placeholder="Search assets..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="pl-8 pr-4 py-2 bg-slate-800 border border-slate-600 text-slate-200 placeholder-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">&#x1F50D;</span>
+                  <span className="absolute left-2.5 top-2.5 text-slate-500 text-sm">&#x1F50D;</span>
                 </div>
-                <span className="text-sm text-gray-500">{filteredHighRisk.length} of {highRisk.length}</span>
+                <span className="text-sm text-slate-500">{filteredHighRisk.length} of {highRisk.length}</span>
                 <button
                   onClick={exportHighRiskCSV}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm hover:bg-green-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 rounded-lg text-sm hover:bg-emerald-900/60 transition-colors"
                 >
                   &#x2B07; Export CSV
                 </button>
               </div>
             </div>
             <div className="p-6">
-              <div className="grid gap-4">
+              <div className="grid gap-3">
                 {filteredHighRisk.map((asset, index) => (
-                  <div key={index} className="p-4 border border-red-200 rounded-lg bg-red-50">
+                  <div key={index} className="p-4 bg-red-950/40 border border-red-800/30 rounded-xl hover:border-red-600/40 transition-colors">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-semibold text-gray-900">{asset.asset_id}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{asset.recommendation}</p>
+                        <h3 className="font-semibold text-white">{asset.asset_id}</h3>
+                        <p className="text-sm text-slate-400 mt-1">{asset.recommendation}</p>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-red-600">
+                      <div className="text-right ml-4">
+                        <div className="text-2xl font-bold text-red-400">
                           {(asset.failure_probability * 100).toFixed(0)}%
                         </div>
-                        <div className="text-xs text-gray-500">{asset.risk_level}</div>
+                        <div className="text-xs text-slate-500">{asset.risk_level}</div>
                       </div>
                     </div>
                   </div>
@@ -481,24 +522,28 @@ function Dashboard() {
 }
 
 function StatCard({ title, value, icon, color }) {
-  const colorClasses = {
-    blue: 'bg-blue-500',
-    red: 'bg-red-500',
-    orange: 'bg-orange-500',
-    green: 'bg-green-500',
+  const gradients = {
+    blue: 'from-blue-600 to-cyan-500',
+    red: 'from-red-600 to-rose-500',
+    orange: 'from-orange-500 to-amber-400',
+    green: 'from-emerald-600 to-teal-500',
+  };
+  const glows = {
+    blue: 'shadow-blue-500/20',
+    red: 'shadow-red-500/20',
+    orange: 'shadow-orange-500/20',
+    green: 'shadow-emerald-500/20',
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 transition-all duration-300 hover:shadow-lg">
-      <div className="flex items-center">
-        <div className={`${colorClasses[color]} p-3 rounded-lg text-white`}>
-          {icon}
+    <div className={`bg-gradient-to-br ${gradients[color]} rounded-2xl p-6 shadow-2xl ${glows[color]} hover:scale-105 transition-all duration-300 cursor-pointer`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+          <div className="text-white">{icon}</div>
         </div>
-        <div className="ml-4">
-          <p className="text-sm text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
+        <div className="text-white/70 text-xs font-medium uppercase tracking-wider text-right">{title}</div>
       </div>
+      <div className="text-4xl font-bold text-white">{value}</div>
     </div>
   );
 }
