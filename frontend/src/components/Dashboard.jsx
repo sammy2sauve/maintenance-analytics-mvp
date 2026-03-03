@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs } from '../services/api';
 import { AlertCircle, DollarSign, Wrench, Activity } from 'lucide-react';
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
@@ -178,16 +178,16 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Maintenance Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-1">TrueSignal Intelligence Platform</p>
+      <header className="bg-gradient-to-r from-slate-900 to-indigo-900 text-white shadow">
+        <div className="w-full px-6 py-6">
+          <h1 className="text-3xl font-bold">Maintenance Analytics Dashboard</h1>
+          <p className="text-indigo-200 mt-1">TrueSignal Intelligence Platform</p>
         </div>
       </header>
 
       {/* Date Range Filter */}
-      <div className="bg-white shadow mb-6">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
+      <div className="bg-white shadow mb-6 sticky top-0 z-10">
+        <div className="w-full px-6 py-3 flex items-center gap-2">
           <span className="text-sm font-medium text-gray-600 mr-2">Time Range:</span>
           {[7, 30, 90].map(days => (
             <button
@@ -215,9 +215,9 @@ function Dashboard() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="w-full px-6 py-8">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard title="Total Assets" value={summary.total_assets_monitored || 0} icon={<Wrench className="w-6 h-6" />} color="blue" />
           <StatCard title="High Risk Assets" value={summary.high_risk_assets || 0} icon={<AlertCircle className="w-6 h-6" />} color="red" />
           <StatCard title="Critical Risk" value={summary.critical_risk_assets || 0} icon={<Activity className="w-6 h-6" />} color="orange" />
@@ -225,7 +225,7 @@ function Dashboard() {
         </div>
 
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
           {/* Chart 1: Risk Distribution */}
           <div className="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Asset Risk Distribution</h2>
