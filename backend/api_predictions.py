@@ -8,6 +8,7 @@ These endpoints can be integrated into the main API or run standalone.
 """
 
 import math
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -146,11 +147,16 @@ async def get_failure_predictions(
         ge=1,
         le=1000,
         description="Maximum number of predictions to return"
+    ),
+    days: Optional[int] = Query(
+        None,
+        ge=1,
+        description="Only return predictions from the last N days"
     )
 ) -> List[Dict[str, Any]]:
     """
     Retrieve asset failure predictions.
-    
+
     Returns predictions sorted by failure probability (highest risk first).
     """
     try:
@@ -160,10 +166,14 @@ async def get_failure_predictions(
             min_probability=min_probability,
             limit=limit
         )
-        
+
         if df.empty:
             return []
-        
+
+        if days and 'prediction_date' in df.columns:
+            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            df = df[df['prediction_date'] >= cutoff]
+
         return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:

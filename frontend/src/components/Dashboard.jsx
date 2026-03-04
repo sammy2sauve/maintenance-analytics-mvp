@@ -30,18 +30,19 @@ function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    loadDashboard(dateRange);
+  }, [dateRange]);
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (days) => {
     try {
       setLoading(true);
       setError(null);
 
+      const timeParams = days ? { days } : {};
       const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
         getPredictions.dashboard(),
-        getKPIs.daily({ limit: 100 }),
-        getPredictions.failures({ limit: 1000 }),
+        getKPIs.daily({ limit: 100, ...timeParams }),
+        getPredictions.failures({ limit: 1000, ...timeParams }),
       ]);
 
       setDashboardData(dashboardRes.data);

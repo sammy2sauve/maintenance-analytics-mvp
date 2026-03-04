@@ -132,18 +132,24 @@ async def get_daily_kpis_endpoint(
         ge=1,
         le=1000,
         description="Maximum number of records to return"
+    ),
+    days: Optional[int] = Query(
+        None,
+        ge=1,
+        description="Only return records from the last N days"
     )
 ) -> List[Dict[str, Any]]:
     """
     Retrieve daily KPIs.
-    
+
     Args:
         kpi_name: Optional filter by KPI name
         limit: Maximum records to return (1-1000, default 100)
-        
+        days: Optional number of days to look back
+
     Returns:
         List of daily KPI records
-        
+
     Raises:
         HTTPException: If query fails or table doesn't exist
     """
@@ -154,9 +160,9 @@ async def get_daily_kpis_endpoint(
                 status_code=503,
                 detail="Daily KPIs table not found. Run pipeline to generate KPIs."
             )
-        
+
         # Query database
-        results = get_daily_kpis(kpi_name=kpi_name, limit=limit)
+        results = get_daily_kpis(kpi_name=kpi_name, limit=limit, days=days)
         
         # Return empty list if no results (not an error)
         if not results:

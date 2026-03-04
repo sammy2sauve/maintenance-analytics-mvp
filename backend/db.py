@@ -9,6 +9,7 @@ import sqlite3
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 
 
 class DatabaseError(Exception):
@@ -137,32 +138,39 @@ def execute_query(
 def get_daily_kpis(
     kpi_name: Optional[str] = None,
     limit: int = 100,
+    days: Optional[int] = None,
     db_path: Optional[Path] = None
 ) -> List[Dict[str, Any]]:
     """
     Retrieve daily KPIs from database.
-    
+
     Args:
         kpi_name: Optional filter by specific KPI name
         limit: Maximum number of records to return (default 100)
+        days: Optional number of days to look back (e.g. 7, 30, 90)
         db_path: Optional path to database file. If None, uses default path.
-        
+
     Returns:
         List of daily KPI records as dictionaries
-        
+
     Raises:
         DatabaseError: If query fails
     """
     query = "SELECT * FROM daily_kpis WHERE 1=1"
     params = []
-    
+
     if kpi_name:
         query += " AND kpi_name = ?"
         params.append(kpi_name)
-    
+
+    if days:
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        query += " AND period_date >= ?"
+        params.append(cutoff)
+
     query += " ORDER BY period_date DESC, kpi_name LIMIT ?"
     params.append(limit)
-    
+
     return execute_query(query, tuple(params), db_path)
 
 
