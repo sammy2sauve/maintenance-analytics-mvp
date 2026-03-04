@@ -542,7 +542,7 @@ function MaintenanceHealthGauge({ summary, kpis }) {
   const zone = getZone(score);
 
   // Larger gauge — arc center near bottom of viewBox so semicircle fills space
-  const cx = 200, cy = 190;
+  const cx = 200, cy = 178;
   const innerR = 118, outerR = 168;
 
   const polarToCartesian = (angleDeg, radius) => {
