@@ -540,7 +540,10 @@ function MaintenanceHealthGauge({ summary, kpis }) {
   };
 
   const zone = getZone(score);
-  const cx = 150, cy = 150, r = 110;
+
+  // Larger gauge — arc center near bottom of viewBox so semicircle fills space
+  const cx = 200, cy = 190;
+  const innerR = 118, outerR = 168;
 
   const polarToCartesian = (angleDeg, radius) => {
     const rad = (angleDeg * Math.PI) / 180;
@@ -557,40 +560,60 @@ function MaintenanceHealthGauge({ summary, kpis }) {
   };
 
   const needleAngle = 180 - (score / 100) * 180;
-  const needlePt = polarToCartesian(needleAngle, r * 0.75);
+  const needleTip = polarToCartesian(needleAngle, outerR);
 
   return (
     <div className={`bg-gradient-to-br ${zone.bg} backdrop-blur-sm border ${zone.border} rounded-2xl p-6 shadow-2xl transition-all duration-300`}>
       <h2 className="text-lg font-semibold text-white mb-1">Maintenance Health Score</h2>
-      <p className="text-xs text-slate-500 mb-4">Overall operational health based on risk profile &amp; savings potential</p>
-      <div className="flex flex-col items-center">
-        <svg width="300" height="175" viewBox="0 0 300 175">
-          {/* Background track */}
-          <path d={arcPath(0, 180, 85, 110)} fill="#1e293b" />
-          {/* Red zone 0-40: angles 180-108 */}
-          <path d={arcPath(108, 180, 86, 109)} fill="#ef4444" opacity="0.7" />
-          {/* Yellow zone 40-70: angles 108-54 */}
-          <path d={arcPath(54, 108, 86, 109)} fill="#f59e0b" opacity="0.7" />
-          {/* Green zone 70-100: angles 54-0 */}
-          <path d={arcPath(0, 54, 86, 109)} fill="#10b981" opacity="0.7" />
-          {/* Score fill arc */}
-          {score > 0 && <path d={arcPath(needleAngle, 180, 87, 108)} fill={zone.color} opacity="0.9" />}
-          {/* Zone labels */}
-          <text x="22" y="150" fill="#ef4444" fontSize="9" fontWeight="600">REACTIVE</text>
-          <text x="150" y="72" fill="#f59e0b" fontSize="9" fontWeight="600" textAnchor="middle">IMPROVING</text>
-          <text x="278" y="150" fill="#10b981" fontSize="9" fontWeight="600" textAnchor="end">PROACTIVE</text>
-          {/* Needle */}
-          <line x1={cx} y1={cy} x2={needlePt.x} y2={needlePt.y} stroke={zone.color} strokeWidth="3" strokeLinecap="round" />
-          <circle cx={cx} cy={cy} r="8" fill={zone.color} />
-          <circle cx={cx} cy={cy} r="4" fill="#0f172a" />
-          {/* Score display */}
-          <text x={cx} y={cy + 28} textAnchor="middle" fill="white" fontSize="30" fontWeight="bold">{score}</text>
-          <text x={cx} y={cy + 46} textAnchor="middle" fill={zone.color} fontSize="12" fontWeight="600">{zone.label}</text>
+      <p className="text-sm text-slate-400 mb-3">Overall operational health based on risk profile &amp; savings potential</p>
+      <div className="flex flex-col items-center w-full">
+        {/* SVG gauge — score/label live in HTML below, no SVG text overlap */}
+        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block' }}>
+          {/* Background track with black outline */}
+          <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="#000" strokeWidth="3" />
+          {/* Red zone 0–40: angles 180→108 */}
+          <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Yellow zone 40–70: angles 108→54 */}
+          <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Green zone 70–100: angles 54→0 */}
+          <path d={arcPath(0, 54, innerR + 1, outerR - 1)} fill="#10b981" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Score fill arc (current position) */}
+          {score > 0 && (
+            <path d={arcPath(needleAngle, 180, innerR + 2, outerR - 2)} fill={zone.color} />
+          )}
+          {/* Needle — black outline + white core */}
+          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#000" strokeWidth="7" strokeLinecap="round" />
+          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+          {/* Pivot cap */}
+          <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="#000" strokeWidth="3" />
+          <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="#000" strokeWidth="1.5" />
         </svg>
-        <div className="flex gap-6 mt-1 text-xs text-slate-400">
-          <span>Critical: <span className="text-red-400 font-medium">-{criticalCount * 3}</span></span>
-          <span>High Risk: <span className="text-orange-400 font-medium">-{highCount}</span></span>
-          <span>Savings Bonus: <span className="text-emerald-400 font-medium">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
+
+        {/* Score display — HTML, zero overlap risk */}
+        <div className="text-center -mt-8">
+          <div className="text-7xl font-bold text-white leading-none">{score}</div>
+          <div className="text-2xl font-bold mt-2" style={{ color: zone.color }}>{zone.label}</div>
+        </div>
+
+        {/* Zone legend */}
+        <div className="flex gap-4 mt-5">
+          {[
+            { color: '#ef4444', label: '0–40 Reactive' },
+            { color: '#f59e0b', label: '40–70 Improving' },
+            { color: '#10b981', label: '70–100 Proactive' },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
+              <span className="w-3.5 h-3.5 rounded-sm inline-block border border-black/60 flex-shrink-0" style={{ background: color }} />
+              {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Score breakdown */}
+        <div className="flex gap-5 mt-3 text-sm text-slate-300">
+          <span>Critical: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
+          <span>High Risk: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
+          <span>Savings: <span className="text-emerald-400 font-semibold">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
         </div>
       </div>
     </div>
