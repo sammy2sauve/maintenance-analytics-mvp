@@ -570,23 +570,23 @@ function MaintenanceHealthGauge({ summary, kpis }) {
         {/* SVG gauge — score/label live in HTML below, no SVG text overlap */}
         <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block' }}>
           {/* Background track */}
-          <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="white" strokeWidth="3" />
+          <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="#000" strokeWidth="3" />
           {/* Red zone 0–40: angles 180→108 */}
-          <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="white" strokeWidth="2" />
+          <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="#000" strokeWidth="2" />
           {/* Yellow zone 40–70: angles 108→54 */}
-          <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="white" strokeWidth="2" />
+          <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="#000" strokeWidth="2" />
           {/* Green zone 70–100: angles 54→0 */}
-          <path d={arcPath(0, 54, innerR + 1, outerR - 1)} fill="#10b981" opacity="0.9" stroke="white" strokeWidth="2" />
+          <path d={arcPath(0, 54, innerR + 1, outerR - 1)} fill="#10b981" opacity="0.9" stroke="#000" strokeWidth="2" />
           {/* Score fill arc (current position) */}
           {score > 0 && (
             <path d={arcPath(needleAngle, 180, innerR + 2, outerR - 2)} fill={zone.color} />
           )}
           {/* Needle — white outline + white core */}
-          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="white" strokeWidth="7" strokeLinecap="round" />
+          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#000" strokeWidth="7" strokeLinecap="round" />
           <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
           {/* Pivot cap */}
-          <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="white" strokeWidth="3" />
-          <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="white" strokeWidth="1.5" />
+          <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="#000" strokeWidth="3" />
+          <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="#000" strokeWidth="1.5" />
         </svg>
 
         {/* Score display — HTML below SVG, no overlap */}
