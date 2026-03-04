@@ -181,19 +181,6 @@ function Dashboard() {
       suggested_freq: c.suggested_pm_frequency_days,
     }));
 
-  const kpiByName = {};
-  dailyKPIs.forEach(k => { if (!kpiByName[k.kpi_name]) kpiByName[k.kpi_name] = k; });
-  const kpiCompareData = Object.values(kpiByName).map(k => ({
-    name: k.kpi_name
-      .replace(' (True)', '')
-      .replace('Mean Time to Complete', 'MTTC')
-      .replace('Labor Utilization', 'Labor Util')
-      .replace('Maintenance Load Stability', 'Maint Load')
-      .replace('Failure Recurrence Index', 'Failure Recur'),
-    raw: k.raw_value != null ? +k.raw_value.toFixed(2) : 0,
-    truesignal: k.truesignal_value != null ? +k.truesignal_value.toFixed(2) : 0,
-    distorted: k.distortion_flag,
-  }));
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -334,42 +321,6 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Chart 4: KPI Raw vs TrueSignal */}
-        {kpiCompareData.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-1">KPI Raw vs TrueSignal Values</h2>
-            <p className="text-xs text-slate-500 mb-4">TrueSignal engine removes distortion from raw maintenance metrics</p>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={kpiCompareData} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = kpiCompareData.find(k => k.name === label);
-                    return (
-                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
-                        <p className="font-semibold text-white mb-1">{label}</p>
-                        {payload.map(p => (
-                          <p key={p.dataKey} style={{ color: p.fill }} className="text-slate-300">
-                            {p.name}: {p.value}
-                          </p>
-                        ))}
-                        {d?.distorted && (
-                          <p className="text-orange-400 mt-1 font-medium">⚠ Distortion detected</p>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-                <Legend formatter={v => <span style={{ color: '#94a3b8' }}>{v}</span>} />
-                <Bar dataKey="raw" name="Raw" fill="#475569" radius={[4, 4, 0, 0]} animationDuration={800} />
-                <Bar dataKey="truesignal" name="TrueSignal" fill="#818cf8" radius={[4, 4, 0, 0]} animationDuration={800} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
 
         {/* KPIs Table */}
         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-6">
