@@ -162,11 +162,6 @@ function Dashboard() {
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(a.name) - ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(b.name));
 
-  const topFailingData = [...failurePredictions]
-    .sort((a, b) => b.failure_probability - a.failure_probability)
-    .slice(0, 15)
-    .map(p => ({ ...p, prob_pct: Math.round(p.failure_probability * 100) }));
-
   const costSavingsData = costSavings
     .filter(c => c.estimated_cost_savings > 0)
     .slice(0, 10)
@@ -291,42 +286,8 @@ function Dashboard() {
             )}
           </div>
 
-          {/* Chart 2: Top Failing Assets */}
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-4">Top Failing Assets</h2>
-            {topFailingData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={380}>
-                <BarChart data={topFailingData} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
-                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                  <YAxis type="category" dataKey="asset_id" width={80} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs max-w-xs">
-                          <p className="font-semibold text-white mb-1">{d.asset_id}</p>
-                          <p className="text-slate-300">Probability: <span className="font-medium text-white">{d.prob_pct}%</span></p>
-                          <p className="text-slate-300">Risk: <span style={{ color: RISK_COLORS[d.risk_level] }} className="font-medium">{d.risk_level}</span></p>
-                          <p className="text-slate-400 mt-1">{d.recommendation}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="prob_pct" radius={[0, 4, 4, 0]} animationDuration={800}>
-                    {topFailingData.map(entry => (
-                      <Cell key={entry.asset_id} fill={RISK_COLORS[entry.risk_level] || '#94a3b8'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
-                No failure predictions available
-              </div>
-            )}
-          </div>
+          {/* Chart 2: Maintenance Health Gauge */}
+          <MaintenanceHealthGauge summary={summary} kpis={dailyKPIs} />
         </div>
 
         {/* Chart 3: Cost Savings */}
@@ -552,6 +513,111 @@ function formatValue(value) {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'number') return value.toFixed(2);
   return value;
+}
+
+function MaintenanceHealthGauge({ summary, kpis }) {
+  const criticalCount = summary?.critical_risk_assets || 0;
+  const highCount = summary?.high_risk_assets || 0;
+  const costSavings = summary?.total_cost_savings_potential || 0;
+
+  const pmKpi = kpis?.find(k =>
+    k.kpi_name?.toLowerCase().includes('pm') ||
+    k.kpi_name?.toLowerCase().includes('preventive')
+  );
+  const pmRate = pmKpi ? (pmKpi.truesignal_value || pmKpi.raw_value || 0) : 0;
+
+  let score = 50;
+  score -= criticalCount * 3;
+  score -= highCount * 1;
+  score += Math.min(costSavings / 10000, 15);
+  if (pmRate > 0.7) score += 5;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const getZone = (s) => {
+    if (s < 40) return { label: 'REACTIVE', color: '#ef4444', bg: 'from-red-900/40 to-red-800/20', border: 'border-red-700/50' };
+    if (s < 70) return { label: 'IMPROVING', color: '#f59e0b', bg: 'from-amber-900/40 to-amber-800/20', border: 'border-amber-700/50' };
+    return { label: 'PROACTIVE', color: '#10b981', bg: 'from-emerald-900/40 to-emerald-800/20', border: 'border-emerald-700/50' };
+  };
+
+  const zone = getZone(score);
+
+  // Larger gauge — arc center near bottom of viewBox so semicircle fills space
+  const cx = 200, cy = 178;
+  const innerR = 118, outerR = 168;
+
+  const polarToCartesian = (angleDeg, radius) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy - radius * Math.sin(rad) };
+  };
+
+  const arcPath = (startDeg, endDeg, inner, outer) => {
+    const s = polarToCartesian(startDeg, outer);
+    const e = polarToCartesian(endDeg, outer);
+    const si = polarToCartesian(startDeg, inner);
+    const ei = polarToCartesian(endDeg, inner);
+    const large = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${outer} ${outer} 0 ${large} 0 ${e.x} ${e.y} L ${ei.x} ${ei.y} A ${inner} ${inner} 0 ${large} 1 ${si.x} ${si.y} Z`;
+  };
+
+  const needleAngle = 180 - (score / 100) * 180;
+  const needleTip = polarToCartesian(needleAngle, outerR);
+
+  return (
+    <div className={`bg-gradient-to-br ${zone.bg} backdrop-blur-sm border ${zone.border} rounded-2xl p-6 shadow-2xl transition-all duration-300`}>
+      <h2 className="text-lg font-semibold text-white mb-1">Maintenance Health Score</h2>
+      <p className="text-sm text-slate-400 mb-3">Overall operational health based on risk profile &amp; savings potential</p>
+      <div className="flex flex-col items-center w-full">
+        {/* SVG gauge — score/label live in HTML below, no SVG text overlap */}
+        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block' }}>
+          {/* Background track */}
+          <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="#000" strokeWidth="3" />
+          {/* Red zone 0–40: angles 180→108 */}
+          <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Yellow zone 40–70: angles 108→54 */}
+          <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Green zone 70–100: angles 54→0 */}
+          <path d={arcPath(0, 54, innerR + 1, outerR - 1)} fill="#10b981" opacity="0.9" stroke="#000" strokeWidth="2" />
+          {/* Score fill arc (current position) */}
+          {score > 0 && (
+            <path d={arcPath(needleAngle, 180, innerR + 2, outerR - 2)} fill={zone.color} />
+          )}
+          {/* Needle — white outline + white core */}
+          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#000" strokeWidth="7" strokeLinecap="round" />
+          <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+          {/* Pivot cap */}
+          <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="#000" strokeWidth="3" />
+          <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="#000" strokeWidth="1.5" />
+        </svg>
+
+        {/* Score display — HTML below SVG, no overlap */}
+        <div className="text-center mt-2">
+          <div className="text-7xl font-bold text-white leading-none">{score}</div>
+          <div className="text-2xl font-bold mt-2" style={{ color: zone.color }}>{zone.label}</div>
+        </div>
+
+        {/* Zone legend */}
+        <div className="flex gap-4 mt-5">
+          {[
+            { color: '#ef4444', label: '0–40 Reactive' },
+            { color: '#f59e0b', label: '40–70 Improving' },
+            { color: '#10b981', label: '70–100 Proactive' },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
+              <span className="w-3.5 h-3.5 rounded-sm inline-block border border-black/60 flex-shrink-0" style={{ background: color }} />
+              {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Score breakdown */}
+        <div className="flex gap-5 mt-3 text-sm text-slate-300">
+          <span>Critical: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
+          <span>High Risk: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
+          <span>Savings: <span className="text-emerald-400 font-semibold">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default Dashboard;
