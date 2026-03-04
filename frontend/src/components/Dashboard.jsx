@@ -30,18 +30,19 @@ function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    loadDashboard(dateRange);
+  }, [dateRange]);
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (days) => {
     try {
       setLoading(true);
       setError(null);
 
+      const timeParams = days ? { days } : {};
       const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
         getPredictions.dashboard(),
-        getKPIs.daily({ limit: 100 }),
-        getPredictions.failures({ limit: 1000 }),
+        getKPIs.daily({ limit: 100, ...timeParams }),
+        getPredictions.failures({ limit: 1000, ...timeParams }),
       ]);
 
       setDashboardData(dashboardRes.data);
@@ -93,6 +94,14 @@ function Dashboard() {
   const insights = dashboardData?.latest_insights || [];
   const highRisk = dashboardData?.high_risk_assets || [];
   const costSavings = dashboardData?.cost_saving_opportunities || [];
+
+  // Derive KPI card counts from filtered predictions so cards update with date range
+  const filteredSummary = {
+    total_assets_monitored: failurePredictions.length,
+    high_risk_assets: failurePredictions.filter(p => p.risk_level === 'HIGH' || p.risk_level === 'CRITICAL').length,
+    critical_risk_assets: failurePredictions.filter(p => p.risk_level === 'CRITICAL').length,
+    total_cost_savings_potential: summary.total_cost_savings_potential || 0,
+  };
 
   // --- Date + search filters ---
   const filteredInsights = dateRange
@@ -235,10 +244,10 @@ function Dashboard() {
       <main className="w-full px-8 py-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Total Assets" value={summary.total_assets_monitored || 0} icon={<Wrench className="w-6 h-6" />} color="blue" />
-          <StatCard title="High Risk Assets" value={summary.high_risk_assets || 0} icon={<AlertCircle className="w-6 h-6" />} color="red" />
-          <StatCard title="Critical Risk" value={summary.critical_risk_assets || 0} icon={<Activity className="w-6 h-6" />} color="orange" />
-          <StatCard title="Cost Savings" value={`$${(summary.total_cost_savings_potential || 0).toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="green" />
+          <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-6 h-6" />} color="blue" />
+          <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-6 h-6" />} color="red" />
+          <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-6 h-6" />} color="orange" />
+          <StatCard title="Cost Savings" value={`$${filteredSummary.total_cost_savings_potential.toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="green" />
         </div>
 
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
