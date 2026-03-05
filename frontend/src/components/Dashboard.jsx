@@ -222,9 +222,9 @@ function Dashboard() {
         </div>
       </header>
 
-      <main className="w-full px-8 py-6">
+      <main className="w-full px-4 py-4">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />
           <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-5 h-5" />} color="red" />
           <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-5 h-5" />} color="orange" />
@@ -234,7 +234,7 @@ function Dashboard() {
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           {/* Chart 1: Risk Distribution */}
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
             <h2 className="text-lg font-semibold text-white mb-4">Asset Risk Distribution</h2>
             {riskDistData.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
@@ -283,7 +283,7 @@ function Dashboard() {
 
         {/* Chart 3: Cost Savings */}
         {costSavingsData.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 mb-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
             <h2 className="text-lg font-semibold text-white mb-4">Cost Savings Opportunities — PM Optimization</h2>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
@@ -318,11 +318,11 @@ function Dashboard() {
 
 
         {/* KPIs Table */}
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-6">
-          <div className="px-6 py-4 border-b border-slate-700/50">
+        <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-4">
+          <div className="px-4 py-3 border-b border-slate-700/50">
             <h2 className="text-xl font-semibold text-white">Daily KPIs</h2>
           </div>
-          <div className="p-6">
+          <div className="p-3">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-700/50">
                 <thead>
@@ -354,10 +354,15 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* Insights Preview */}
+        {filteredInsights.length > 0 && (
+          <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
+        )}
+
         {/* Insights */}
         {insights.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-6">
-            <div className="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-4">
+            <div className="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">Latest Insights</h2>
               <button
                 onClick={exportInsightsCSV}
@@ -366,7 +371,7 @@ function Dashboard() {
                 &#x2B07; Export CSV
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-3">
               {filteredInsights.length === 0 ? (
                 <p className="text-slate-500 text-sm">No insights in selected time range.</p>
               ) : (
@@ -388,7 +393,7 @@ function Dashboard() {
         {/* High Risk Assets */}
         {highRisk.length > 0 && (
           <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+            <div className="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">High Risk Assets</h2>
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -410,7 +415,7 @@ function Dashboard() {
                 </button>
               </div>
             </div>
-            <div className="p-6">
+            <div className="p-3">
               <div className="grid gap-3">
                 {filteredHighRisk.map((asset, index) => (
                   <div key={index} className="p-4 bg-red-950/40 border border-red-800/30 rounded-xl hover:border-red-600/40 transition-colors">
@@ -598,6 +603,51 @@ function CompactKPITable({ kpis }) {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function InsightsPreview({ insights, onExport }) {
+  const topInsights = insights.slice(0, 5);
+
+  return (
+    <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-white">Latest Insights</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{insights.length} total</span>
+          {onExport && (
+            <button
+              onClick={onExport}
+              className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded"
+            >
+              Export
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {topInsights.map((insight, idx) => (
+          <div key={idx} className="border-l-2 border-indigo-500 pl-2 py-1">
+            <p className="text-xs text-white font-medium leading-tight">{insight.title}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                insight.impact_level === 'HIGH' ? 'bg-red-500/20 text-red-400' :
+                insight.impact_level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-blue-500/20 text-blue-400'
+              }`}>
+                {insight.impact_level}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {(insight.confidence_score * 100).toFixed(0)}% confident
+              </span>
+            </div>
+          </div>
+        ))}
+        {insights.length > 5 && (
+          <p className="text-[10px] text-slate-500 pt-1">+{insights.length - 5} more below</p>
+        )}
       </div>
     </div>
   );
