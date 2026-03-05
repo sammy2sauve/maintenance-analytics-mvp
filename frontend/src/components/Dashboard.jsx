@@ -238,12 +238,12 @@ function Dashboard() {
         </div>
 
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           {/* Chart 1: Risk Distribution */}
           <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
             <h2 className="text-lg font-semibold text-white mb-4">Asset Risk Distribution</h2>
             {riskDistData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={380}>
+              <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
                     data={riskDistData}
@@ -251,7 +251,7 @@ function Dashboard() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={120}
+                    outerRadius={80}
                     isAnimationActive={true}
                     animationDuration={800}
                     label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
@@ -284,13 +284,14 @@ function Dashboard() {
 
           {/* Chart 2: Maintenance Health Gauge */}
           <MaintenanceHealthGauge summary={summary} kpis={dailyKPIs} />
+          <CompactKPITable kpis={dailyKPIs} />
         </div>
 
         {/* Chart 3: Cost Savings */}
         {costSavingsData.length > 0 && (
           <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
             <h2 className="text-lg font-semibold text-white mb-4">Cost Savings Opportunities — PM Optimization</h2>
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
                 <defs>
                   <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
@@ -575,6 +576,32 @@ function MaintenanceHealthGauge({ summary, kpis }) {
           <span>High Risk: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
           <span>Savings: <span className="text-emerald-400 font-semibold">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CompactKPITable({ kpis }) {
+  const topKPIs = kpis.slice(0, 5);
+
+  return (
+    <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl" style={{ height: '250px' }}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-white">Key Metrics</h3>
+        <span className="text-xs text-slate-400">{kpis.length} total</span>
+      </div>
+      <div className="space-y-2 overflow-y-auto" style={{ maxHeight: '195px' }}>
+        {topKPIs.map((kpi, idx) => (
+          <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/30">
+            <span className="text-slate-300 truncate mr-2">{kpi.kpi_name}</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-indigo-300 font-medium">{formatValue(kpi.truesignal_value)}</span>
+              {kpi.distortion_flag && (
+                <span className="text-yellow-400 text-[10px]">&#x26A0;</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
