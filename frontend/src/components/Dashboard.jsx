@@ -185,56 +185,50 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Header */}
-      <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-800/30 shadow-2xl">
-        <div className="w-full px-8 py-6 flex items-center justify-between">
+      <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-800/30 shadow-2xl sticky top-0 z-10">
+        <div className="w-full px-6 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Maintenance Analytics</h1>
-            <p className="text-indigo-300 mt-1 text-sm font-medium">TrueSignal Intelligence Platform</p>
+            <h1 className="text-xl font-bold text-white tracking-tight">Maintenance Analytics</h1>
+            <p className="text-xs text-indigo-300 font-medium">TrueSignal Intelligence Platform</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
-            <span className="text-emerald-300 text-sm font-medium">Live</span>
-          </div>
-        </div>
-      </header>
-
-      {/* Date Range Filter */}
-      <div className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 mb-6 sticky top-0 z-10">
-        <div className="w-full px-8 py-3 flex items-center gap-3">
-          <span className="text-sm font-medium text-slate-400 mr-2">Time Range:</span>
-          {[7, 30, 90].map(days => (
+            <span className="text-xs text-slate-400">Time Range:</span>
+            {[7, 30, 90].map(days => (
+              <button
+                key={days}
+                onClick={() => setDateRange(days)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  dateRange === days
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                Last {days}d
+              </button>
+            ))}
             <button
-              key={days}
-              onClick={() => setDateRange(days)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                dateRange === days
+              onClick={() => setDateRange(null)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                dateRange === null
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              Last {days} Days
+              All
             </button>
-          ))}
-          <button
-            onClick={() => setDateRange(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              dateRange === null
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            All Time
-          </button>
+            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse ml-3"></div>
+            <span className="text-xs text-emerald-300 font-medium">Live</span>
+          </div>
         </div>
-      </div>
+      </header>
 
       <main className="w-full px-8 py-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-6 h-6" />} color="blue" />
-          <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-6 h-6" />} color="red" />
-          <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-6 h-6" />} color="orange" />
-          <StatCard title="Cost Savings" value={`$${filteredSummary.total_cost_savings_potential.toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="green" />
+          <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />
+          <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-5 h-5" />} color="red" />
+          <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-5 h-5" />} color="orange" />
+          <StatCard title="Cost Savings" value={`$${filteredSummary.total_cost_savings_potential.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} color="green" />
         </div>
 
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
@@ -457,14 +451,16 @@ function StatCard({ title, value, icon, color }) {
   };
 
   return (
-    <div className={`bg-gradient-to-br ${gradients[color]} rounded-2xl p-6 shadow-2xl ${glows[color]} hover:scale-105 transition-all duration-300 cursor-pointer`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+    <div className={`bg-gradient-to-br ${gradients[color]} rounded-lg p-4 shadow-md ${glows[color]} cursor-pointer`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-white/70 uppercase tracking-wide">{title}</p>
+          <p className="text-2xl font-bold text-white mt-1">{value}</p>
+        </div>
+        <div className="bg-white/20 p-2 rounded">
           <div className="text-white">{icon}</div>
         </div>
-        <div className="text-white/70 text-xs font-medium uppercase tracking-wider text-right">{title}</div>
       </div>
-      <div className="text-4xl font-bold text-white">{value}</div>
     </div>
   );
 }
