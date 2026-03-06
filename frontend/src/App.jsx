@@ -52,14 +52,16 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-950">
+      <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
         <Header dateRange={dateRange} setDateRange={setDateRange} />
         <Nav />
-        <Routes>
-          <Route path="/" element={<Overview dateRange={dateRange} />} />
-          <Route path="/assets" element={<AssetHealth dateRange={dateRange} />} />
-          <Route path="/savings" element={<CostSavings dateRange={dateRange} />} />
-        </Routes>
+        <div className="flex-1 overflow-hidden">
+          <Routes>
+            <Route path="/" element={<Overview dateRange={dateRange} />} />
+            <Route path="/assets" element={<AssetHealth dateRange={dateRange} />} />
+            <Route path="/savings" element={<CostSavings dateRange={dateRange} />} />
+          </Routes>
+        </div>
       </div>
     </BrowserRouter>
   );

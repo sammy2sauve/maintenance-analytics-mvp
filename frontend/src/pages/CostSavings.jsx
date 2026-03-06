@@ -84,7 +84,7 @@ export default function CostSavings({ dateRange }) {
   };
 
   return (
-    <main className="w-full px-4 py-4">
+    <main className="w-full px-4 py-4 h-full overflow-y-auto">
       {/* Total Savings Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-gradient-to-br from-emerald-600 to-teal-500 rounded-lg p-4 shadow-md">

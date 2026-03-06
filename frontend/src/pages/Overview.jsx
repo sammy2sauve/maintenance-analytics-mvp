@@ -296,7 +296,7 @@ export default function Overview({ dateRange }) {
   };
 
   return (
-    <main className="w-full px-4 py-4">
+    <main className="w-full px-4 py-4 h-full overflow-y-auto">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />
