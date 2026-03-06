@@ -220,7 +220,15 @@ export default function Overview({ dateRange }) {
         }
       });
       setDailyKPIs(Array.from(kpiMap.values()).sort((a, b) => a.kpi_name.localeCompare(b.kpi_name)));
-      setFailurePredictions(predictionsRes.data);
+      // Deduplicate to latest prediction per asset within the date window
+      const latestByAsset = new Map();
+      (predictionsRes.data || []).forEach(p => {
+        const existing = latestByAsset.get(p.asset_id);
+        if (!existing || (p.prediction_date ?? '') > (existing.prediction_date ?? '')) {
+          latestByAsset.set(p.asset_id, p);
+        }
+      });
+      setFailurePredictions(Array.from(latestByAsset.values()));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -348,7 +356,7 @@ export default function Overview({ dateRange }) {
           )}
         </div>
 
-        <MaintenanceHealthGauge summary={summary} kpis={dailyKPIs} />
+        <MaintenanceHealthGauge summary={filteredSummary} kpis={dailyKPIs} />
         <CompactKPITable kpis={dailyKPIs} />
       </div>
 
