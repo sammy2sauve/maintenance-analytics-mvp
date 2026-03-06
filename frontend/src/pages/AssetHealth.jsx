@@ -99,7 +99,7 @@ export default function AssetHealth({ dateRange }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await getPredictions.failures({ limit: 10000 });
+      const res = await getPredictions.failures({ limit: 1000 });
       const data = res.data || [];
 
       // Keep only the latest prediction per asset
