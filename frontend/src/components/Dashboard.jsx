@@ -234,10 +234,10 @@ function Dashboard() {
         {/* Charts Row 1: Risk Distribution + Top Failing Assets */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           {/* Chart 1: Risk Distribution */}
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-4">Asset Risk Distribution</h2>
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300" style={{ height: '250px', overflow: 'hidden' }}>
+            <h2 className="text-sm font-semibold text-white mb-2">Risk Distribution</h2>
             {riskDistData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie
                     data={riskDistData}
@@ -245,10 +245,10 @@ function Dashboard() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    outerRadius={65}
                     isAnimationActive={true}
                     animationDuration={800}
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     labelLine={{ stroke: '#94a3b8' }}
                   >
                     {riskDistData.map(entry => (
@@ -266,11 +266,10 @@ function Dashboard() {
                       );
                     }}
                   />
-                  <Legend formatter={v => <span style={{ color: '#94a3b8' }}>{v}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+              <div className="flex items-center justify-center h-40 text-slate-500 text-sm">
                 No prediction data — run the pipeline first
               </div>
             )}
@@ -281,40 +280,6 @@ function Dashboard() {
           <CompactKPITable kpis={dailyKPIs} />
         </div>
 
-        {/* Chart 3: Cost Savings */}
-        {costSavingsData.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 mb-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-4">Cost Savings Opportunities — PM Optimization</h2>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={costSavingsData} margin={{ left: 10, right: 10 }}>
-                <defs>
-                  <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-                <XAxis dataKey="asset_id" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                <YAxis tickFormatter={v => `$${v.toLocaleString()}`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
-                        <p className="font-semibold text-white mb-1">{d.asset_id}</p>
-                        <p className="text-slate-300">Savings: <span className="font-medium text-emerald-400">${d.savings.toLocaleString()}/yr</span></p>
-                        <p className="text-slate-400">Current PM every {d.current_freq} days</p>
-                        <p className="text-slate-400">Suggested every {d.suggested_freq} days</p>
-                      </div>
-                    );
-                  }}
-                />
-                <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#costGradient)" strokeWidth={2} animationDuration={800} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
 
 
 
@@ -324,53 +289,6 @@ function Dashboard() {
         )}
 
 
-        {/* High Risk Assets */}
-        {highRisk.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl">
-            <div className="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">High Risk Assets</h2>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search assets..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-8 pr-4 py-2 bg-slate-800 border border-slate-600 text-slate-200 placeholder-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="absolute left-2.5 top-2.5 text-slate-500 text-sm">&#x1F50D;</span>
-                </div>
-                <span className="text-sm text-slate-500">{filteredHighRisk.length} of {highRisk.length}</span>
-                <button
-                  onClick={exportHighRiskCSV}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 rounded-lg text-sm hover:bg-emerald-900/60 transition-colors"
-                >
-                  &#x2B07; Export CSV
-                </button>
-              </div>
-            </div>
-            <div className="p-3">
-              <div className="grid gap-3">
-                {filteredHighRisk.map((asset, index) => (
-                  <div key={index} className="p-4 bg-red-950/40 border border-red-800/30 rounded-xl hover:border-red-600/40 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold text-white">{asset.asset_id}</h3>
-                        <p className="text-sm text-slate-400 mt-1">{asset.recommendation}</p>
-                      </div>
-                      <div className="text-right ml-4">
-                        <div className="text-2xl font-bold text-red-400">
-                          {(asset.failure_probability * 100).toFixed(0)}%
-                        </div>
-                        <div className="text-xs text-slate-500">{asset.risk_level}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
@@ -516,26 +434,21 @@ function CompactKPITable({ kpis }) {
 }
 
 function InsightsPreview({ insights, onExport }) {
-  const topInsights = insights.slice(0, 5);
-
   return (
     <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">Latest Insights</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{insights.length} total</span>
-          {onExport && (
-            <button
-              onClick={onExport}
-              className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded"
-            >
-              Export
-            </button>
-          )}
-        </div>
+        <h3 className="text-sm font-semibold text-white">Latest Insights <span className="text-slate-500 font-normal">({insights.length})</span></h3>
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded"
+          >
+            Export CSV
+          </button>
+        )}
       </div>
-      <div className="space-y-2">
-        {topInsights.map((insight, idx) => (
+      <div className="grid grid-cols-2 gap-2">
+        {insights.map((insight, idx) => (
           <div key={idx} className="border-l-2 border-indigo-500 pl-2 py-1">
             <p className="text-xs text-white font-medium leading-tight">{insight.title}</p>
             <div className="flex items-center gap-2 mt-0.5">
@@ -547,14 +460,11 @@ function InsightsPreview({ insights, onExport }) {
                 {insight.impact_level}
               </span>
               <span className="text-[10px] text-slate-400">
-                {(insight.confidence_score * 100).toFixed(0)}% confident
+                {(insight.confidence_score * 100).toFixed(0)}% conf
               </span>
             </div>
           </div>
         ))}
-        {insights.length > 5 && (
-          <p className="text-[10px] text-slate-500 pt-1">+{insights.length - 5} more below</p>
-        )}
       </div>
     </div>
   );
