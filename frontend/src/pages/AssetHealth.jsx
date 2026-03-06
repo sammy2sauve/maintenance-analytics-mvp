@@ -1,52 +1,128 @@
 import { useState, useEffect } from 'react';
 import { getPredictions } from '../services/api';
-import { AlertCircle, Wrench, Activity } from 'lucide-react';
-import {
-  PieChart, Pie, Cell,
-  Tooltip, ResponsiveContainer,
-} from 'recharts';
+import { AlertCircle } from 'lucide-react';
 
-const RISK_COLORS = {
-  LOW: '#34d399',
-  MEDIUM: '#fbbf24',
-  HIGH: '#fb923c',
-  CRITICAL: '#f87171',
+const ASSET_TYPE_MAP = {
+  PUMP: 'Pump',
+  COMP: 'Compressor',
+  FAN: 'Fan',
+  MOTOR: 'Motor',
+  VALVE: 'Valve',
+  CONV: 'Conveyor',
+  HEAT: 'Heat Exchanger',
+  COOL: 'Cooler',
+  BOIL: 'Boiler',
+  TURB: 'Turbine',
+  GEN: 'Generator',
+  FILT: 'Filter',
 };
 
-const RISK_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+function getAssetType(assetId) {
+  if (!assetId) return 'Asset';
+  const prefix = assetId.split(/[-_\d]/)[0].toUpperCase();
+  return ASSET_TYPE_MAP[prefix] || prefix || 'Asset';
+}
 
-function StatCard({ title, value, icon, color }) {
-  const gradients = {
-    blue: 'from-blue-600 to-cyan-500',
-    red: 'from-red-600 to-rose-500',
-    orange: 'from-orange-500 to-amber-400',
-  };
+const COLUMNS = [
+  {
+    key: 'healthy',
+    label: 'Healthy',
+    levels: ['LOW', 'MEDIUM'],
+    headerColor: 'text-emerald-400',
+    borderColor: 'border-emerald-500/30',
+    bgColor: 'bg-emerald-500/5',
+    countBg: 'bg-emerald-500/20 text-emerald-300',
+    cardBorder: { LOW: 'border-l-emerald-500', MEDIUM: 'border-l-yellow-500' },
+    cardDot: { LOW: 'bg-emerald-400', MEDIUM: 'bg-yellow-400' },
+  },
+  {
+    key: 'high',
+    label: 'High Risk',
+    levels: ['HIGH'],
+    headerColor: 'text-orange-400',
+    borderColor: 'border-orange-500/30',
+    bgColor: 'bg-orange-500/5',
+    countBg: 'bg-orange-500/20 text-orange-300',
+    cardBorder: { HIGH: 'border-l-orange-500' },
+    cardDot: { HIGH: 'bg-orange-400' },
+  },
+  {
+    key: 'critical',
+    label: 'Critical',
+    levels: ['CRITICAL'],
+    headerColor: 'text-red-400',
+    borderColor: 'border-red-500/30',
+    bgColor: 'bg-red-500/5',
+    countBg: 'bg-red-500/20 text-red-300',
+    cardBorder: { CRITICAL: 'border-l-red-500' },
+    cardDot: { CRITICAL: 'bg-red-400' },
+  },
+];
+
+function ProbBar({ value }) {
+  const pct = value != null ? Math.round(value * 100) : null;
+  if (pct === null) return <span className="text-slate-500 text-[10px]">—</span>;
+  const color = pct >= 80 ? 'bg-red-500' : pct >= 50 ? 'bg-orange-400' : pct >= 30 ? 'bg-yellow-400' : 'bg-emerald-400';
   return (
-    <div className={`bg-gradient-to-br ${gradients[color]} rounded-lg p-4 shadow-md`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-white/70 uppercase tracking-wide">{title}</p>
-          <p className="text-2xl font-bold text-white mt-1">{value}</p>
-        </div>
-        <div className="bg-white/20 p-2 rounded">
-          <div className="text-white">{icon}</div>
-        </div>
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
+      <span className="text-[10px] text-slate-300 w-7 text-right">{pct}%</span>
     </div>
   );
 }
 
-function RiskBadge({ level }) {
-  const styles = {
-    LOW: 'bg-emerald-500/20 text-emerald-400',
-    MEDIUM: 'bg-yellow-500/20 text-yellow-400',
-    HIGH: 'bg-orange-500/20 text-orange-400',
-    CRITICAL: 'bg-red-500/20 text-red-400',
-  };
+function AssetCard({ asset, col }) {
+  const borderClass = col.cardBorder[asset.risk_level] || 'border-l-slate-500';
+  const dotClass = col.cardDot[asset.risk_level] || 'bg-slate-400';
+  const type = getAssetType(asset.asset_id);
+
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${styles[level] || 'bg-slate-500/20 text-slate-400'}`}>
-      {level}
-    </span>
+    <div className={`bg-slate-800/60 border border-slate-700/50 border-l-2 ${borderClass} rounded-lg p-3 hover:bg-slate-800/90 transition-colors`}>
+      <div className="flex items-start justify-between mb-1.5">
+        <div>
+          <p className="text-xs font-semibold text-white leading-tight">{asset.asset_id}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{type}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+          {asset.days_to_predicted_failure != null && (
+            <span className="text-[10px] text-slate-400">{asset.days_to_predicted_failure}d</span>
+          )}
+        </div>
+      </div>
+      <ProbBar value={asset.failure_probability} />
+      {asset.recommendation && (
+        <p className="text-[10px] text-slate-400 mt-1.5 leading-tight line-clamp-2">
+          {asset.recommendation}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function KanbanColumn({ col, assets }) {
+  return (
+    <div className={`flex flex-col border ${col.borderColor} ${col.bgColor} rounded-2xl overflow-hidden`}>
+      {/* Column header */}
+      <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between flex-shrink-0">
+        <span className={`text-sm font-semibold ${col.headerColor}`}>{col.label}</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${col.countBg}`}>
+          {assets.length}
+        </span>
+      </div>
+      {/* Cards */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {assets.length === 0 ? (
+          <p className="text-center text-slate-600 text-xs py-8">No assets</p>
+        ) : (
+          assets.map((asset, idx) => (
+            <AssetCard key={asset.asset_id ?? idx} asset={asset} col={col} />
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -94,21 +170,14 @@ export default function AssetHealth({ dateRange }) {
     );
   }
 
-  const highRisk = predictions.filter(p => p.risk_level === 'HIGH' || p.risk_level === 'CRITICAL');
-  const critical = predictions.filter(p => p.risk_level === 'CRITICAL');
+  const filtered = searchQuery
+    ? predictions.filter(p => p.asset_id?.toLowerCase().includes(searchQuery.toLowerCase()))
+    : predictions;
 
-  const filtered = highRisk.filter(a =>
-    !searchQuery || a.asset_id?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const riskDistData = Object.entries(
-    predictions.reduce((acc, p) => {
-      acc[p.risk_level] = (acc[p.risk_level] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => RISK_ORDER.indexOf(a.name) - RISK_ORDER.indexOf(b.name));
+  const columnAssets = COLUMNS.map(col => ({
+    col,
+    assets: filtered.filter(p => col.levels.includes(p.risk_level)),
+  }));
 
   const exportCSV = () => {
     const headers = ['asset_id', 'risk_level', 'failure_probability', 'recommendation', 'days_to_predicted_failure', 'prediction_date'];
@@ -124,119 +193,42 @@ export default function AssetHealth({ dateRange }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `high_risk_assets_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `asset_health_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <main className="w-full px-4 py-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <StatCard title="Total Monitored" value={predictions.length} icon={<Wrench className="w-5 h-5" />} color="blue" />
-        <StatCard title="High Risk" value={highRisk.length} icon={<AlertCircle className="w-5 h-5" />} color="red" />
-        <StatCard title="Critical" value={critical.length} icon={<Activity className="w-5 h-5" />} color="orange" />
-      </div>
-
-      {/* Risk Distribution Pie — full width, taller */}
-      <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl mb-4" style={{ height: '350px' }}>
-        <h2 className="text-sm font-semibold text-white mb-2">Risk Distribution</h2>
-        {riskDistData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={290}>
-            <PieChart>
-              <Pie
-                data={riskDistData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={110}
-                isAnimationActive={true}
-                animationDuration={800}
-                label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                labelLine={{ stroke: '#94a3b8' }}
-              >
-                {riskDistData.map(entry => (
-                  <Cell key={entry.name} fill={RISK_COLORS[entry.name] || '#94a3b8'} />
-                ))}
-              </Pie>
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  return (
-                    <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
-                      <p className="font-semibold text-white mb-1">{payload[0].name}</p>
-                      <p className="text-slate-300">{payload[0].value} assets</p>
-                    </div>
-                  );
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
-            No prediction data — run the pipeline first
-          </div>
-        )}
-      </div>
-
-      {/* High Risk Assets Table */}
-      <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-white">
-            High Risk Assets <span className="text-slate-500 font-normal">({filtered.length})</span>
-          </h3>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Search asset ID..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-            />
-            <button
-              onClick={exportCSV}
-              className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-1 rounded"
-            >
-              Export CSV
-            </button>
-          </div>
-        </div>
-        <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-slate-900">
-              <tr className="text-slate-400 border-b border-slate-700">
-                <th className="text-left py-2 pr-4">Asset ID</th>
-                <th className="text-left py-2 pr-4">Risk Level</th>
-                <th className="text-right py-2 pr-4">Failure Prob.</th>
-                <th className="text-right py-2 pr-4">Days to Failure</th>
-                <th className="text-left py-2">Recommendation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-500">No high-risk assets found</td>
-                </tr>
-              ) : (
-                filtered.map((asset, idx) => (
-                  <tr key={idx} className="border-b border-slate-800 hover:bg-slate-800/40">
-                    <td className="py-2 pr-4 text-slate-200 font-medium">{asset.asset_id}</td>
-                    <td className="py-2 pr-4"><RiskBadge level={asset.risk_level} /></td>
-                    <td className="py-2 pr-4 text-right text-slate-300">
-                      {asset.failure_probability != null ? `${(asset.failure_probability * 100).toFixed(1)}%` : 'N/A'}
-                    </td>
-                    <td className="py-2 pr-4 text-right text-slate-300">
-                      {asset.days_to_predicted_failure ?? 'N/A'}
-                    </td>
-                    <td className="py-2 text-slate-400 max-w-xs truncate">{asset.recommendation || '—'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+    <div className="flex flex-col px-4 py-4" style={{ height: 'calc(100vh - 96px)' }}>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <h2 className="text-sm font-semibold text-white">
+          Asset Health Board
+          <span className="text-slate-500 font-normal ml-2">({filtered.length} assets)</span>
+        </h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search asset..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-44"
+          />
+          <button
+            onClick={exportCSV}
+            className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-1 rounded"
+          >
+            Export CSV
+          </button>
         </div>
       </div>
-    </main>
+
+      {/* Kanban columns — fill remaining height */}
+      <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
+        {columnAssets.map(({ col, assets }) => (
+          <KanbanColumn key={col.key} col={col} assets={assets} />
+        ))}
+      </div>
+    </div>
   );
 }
