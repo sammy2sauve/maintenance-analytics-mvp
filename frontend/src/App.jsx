@@ -7,7 +7,7 @@ import CostSavings from './pages/CostSavings';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
-const REALTIME_PATHS = ['/assets'];
+const REALTIME_PATHS = ['/assets', '/savings'];
 
 function Header({ dateRange, setDateRange }) {
   const { pathname } = useLocation();
