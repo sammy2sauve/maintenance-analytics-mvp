@@ -317,78 +317,12 @@ function Dashboard() {
         )}
 
 
-        {/* KPIs Table */}
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-4">
-          <div className="px-4 py-3 border-b border-slate-700/50">
-            <h2 className="text-xl font-semibold text-white">Daily KPIs</h2>
-          </div>
-          <div className="p-3">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-700/50">
-                <thead>
-                  <tr className="bg-slate-800/60">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">KPI Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Raw Value</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">TrueSignal Value</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Distortion</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700/50">
-                  {dailyKPIs.map((kpi, index) => (
-                    <tr key={index} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200">{kpi.kpi_name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{formatValue(kpi.raw_value)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-300 font-medium">{formatValue(kpi.truesignal_value)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {kpi.distortion_flag ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-900/50 text-red-300 border border-red-700/50">Distorted</span>
-                        ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">Clean</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
 
         {/* Insights Preview */}
         {filteredInsights.length > 0 && (
           <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
         )}
 
-        {/* Insights */}
-        {insights.length > 0 && (
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-2xl mb-4">
-            <div className="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">Latest Insights</h2>
-              <button
-                onClick={exportInsightsCSV}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 rounded-lg text-sm hover:bg-emerald-900/60 transition-colors"
-              >
-                &#x2B07; Export CSV
-              </button>
-            </div>
-            <div className="p-3">
-              {filteredInsights.length === 0 ? (
-                <p className="text-slate-500 text-sm">No insights in selected time range.</p>
-              ) : (
-                filteredInsights.map((insight, index) => (
-                  <div key={index} className="mb-4 last:mb-0 p-4 bg-indigo-950/50 border border-indigo-800/30 rounded-xl">
-                    <h3 className="font-semibold text-white mb-2">{insight.title}</h3>
-                    <p className="text-sm text-slate-400">{insight.description}</p>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-                      <span>Impact: <span className="text-indigo-300">{insight.impact_level}</span></span>
-                      <span>Confidence: <span className="text-indigo-300">{(insight.confidence_score * 100).toFixed(0)}%</span></span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
 
         {/* High Risk Assets */}
         {highRisk.length > 0 && (
@@ -525,56 +459,29 @@ function MaintenanceHealthGauge({ summary, kpis }) {
   const needleTip = polarToCartesian(needleAngle, outerR);
 
   return (
-    <div className={`bg-gradient-to-br ${zone.bg} backdrop-blur-sm border ${zone.border} rounded-2xl p-6 shadow-2xl transition-all duration-300`}>
-      <h2 className="text-lg font-semibold text-white mb-1">Maintenance Health Score</h2>
-      <p className="text-sm text-slate-400 mb-3">Overall operational health based on risk profile &amp; savings potential</p>
+    <div className={`bg-gradient-to-br ${zone.bg} backdrop-blur-sm border ${zone.border} rounded-2xl p-3 shadow-2xl transition-all duration-300`} style={{ height: '250px', overflow: 'hidden' }}>
+      <h2 className="text-sm font-semibold text-white mb-1">Maintenance Health</h2>
       <div className="flex flex-col items-center w-full">
-        {/* SVG gauge — score/label live in HTML below, no SVG text overlap */}
-        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block' }}>
-          {/* Background track */}
+        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block', maxHeight: '130px' }}>
           <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="#000" strokeWidth="3" />
-          {/* Red zone 0–40: angles 180→108 */}
           <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="#000" strokeWidth="2" />
-          {/* Yellow zone 40–70: angles 108→54 */}
           <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="#000" strokeWidth="2" />
-          {/* Green zone 70–100: angles 54→0 */}
           <path d={arcPath(0, 54, innerR + 1, outerR - 1)} fill="#10b981" opacity="0.9" stroke="#000" strokeWidth="2" />
-          {/* Score fill arc (current position) */}
           {score > 0 && (
             <path d={arcPath(needleAngle, 180, innerR + 2, outerR - 2)} fill={zone.color} />
           )}
-          {/* Needle — white outline + white core */}
           <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#000" strokeWidth="7" strokeLinecap="round" />
           <line x1={cx} y1={cy} x2={needleTip.x} y2={needleTip.y} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
-          {/* Pivot cap */}
           <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="#000" strokeWidth="3" />
           <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="#000" strokeWidth="1.5" />
         </svg>
-
-        {/* Score display — HTML below SVG, no overlap */}
-        <div className="text-center mt-2">
-          <div className="text-7xl font-bold text-white leading-none">{score}</div>
-          <div className="text-2xl font-bold mt-2" style={{ color: zone.color }}>{zone.label}</div>
+        <div className="text-center mt-1">
+          <div className="text-3xl font-bold text-white leading-none">{score}</div>
+          <div className="text-sm font-bold mt-1" style={{ color: zone.color }}>{zone.label}</div>
         </div>
-
-        {/* Zone legend */}
-        <div className="flex gap-4 mt-5">
-          {[
-            { color: '#ef4444', label: '0–40 Reactive' },
-            { color: '#f59e0b', label: '40–70 Improving' },
-            { color: '#10b981', label: '70–100 Proactive' },
-          ].map(({ color, label }) => (
-            <span key={label} className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
-              <span className="w-3.5 h-3.5 rounded-sm inline-block border border-black/60 flex-shrink-0" style={{ background: color }} />
-              {label}
-            </span>
-          ))}
-        </div>
-
-        {/* Score breakdown */}
-        <div className="flex gap-5 mt-3 text-sm text-slate-300">
-          <span>Critical: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
-          <span>High Risk: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
+        <div className="flex gap-3 mt-2 text-xs text-slate-400">
+          <span>Crit: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
+          <span>High: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
           <span>Savings: <span className="text-emerald-400 font-semibold">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
         </div>
       </div>
