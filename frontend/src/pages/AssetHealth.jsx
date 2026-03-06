@@ -90,14 +90,28 @@ export default function AssetHealth({ dateRange }) {
   const [predictions, setPredictions] = useState([]);
   const [search, setSearch]       = useState('');
 
-  useEffect(() => { load(); }, [dateRange]);
+  // Asset Health is a current-state view — ignore the date range filter.
+  // We fetch ALL predictions and deduplicate to the most recent per asset,
+  // so the total count is stable and reflects the full monitored fleet.
+  useEffect(() => { load(); }, []);
 
   const load = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await getPredictions.failures({ limit: 1000, ...(dateRange ? { days: dateRange } : {}) });
-      setPredictions(res.data || []);
+      const res = await getPredictions.failures({ limit: 10000 });
+      const data = res.data || [];
+
+      // Keep only the latest prediction per asset
+      const latestByAsset = new Map();
+      data.forEach(p => {
+        const existing = latestByAsset.get(p.asset_id);
+        if (!existing || (p.prediction_date ?? '') > (existing.prediction_date ?? '')) {
+          latestByAsset.set(p.asset_id, p);
+        }
+      });
+
+      setPredictions(Array.from(latestByAsset.values()));
     } catch (err) {
       setError(err.message);
     } finally {
