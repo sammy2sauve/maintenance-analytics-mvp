@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Nav from './components/Nav';
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Overview from './pages/Overview';
 import AssetHealth from './pages/AssetHealth';
 import CostSavings from './pages/CostSavings';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
-const REALTIME_PATHS = ['/assets', '/savings'];
+const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/savings'];
 
 function TrueSignalLogo() {
   return (
     <div className="flex items-center gap-3">
-      {/* Signal waveform icon */}
       <svg width="44" height="28" viewBox="0 0 44 28" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="sigGrad" x1="0" y1="0" x2="44" y2="0" gradientUnits="userSpaceOnUse">
@@ -24,21 +27,13 @@ function TrueSignalLogo() {
             <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
-        {/* flat — rise — spike — fall — flat */}
         <polyline
           points="0,14 8,14 11,14 14,3 17,25 20,14 22,14 44,14"
-          stroke="url(#sigGrad)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-          filter="url(#sigGlow)"
+          stroke="url(#sigGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          fill="none" filter="url(#sigGlow)"
         />
-        {/* Pulse dot at spike peak */}
         <circle cx="14" cy="3" r="2.5" fill="#34d399" opacity="0.9" filter="url(#sigGlow)" />
       </svg>
-
-      {/* Wordmark */}
       <div>
         <div className="flex items-baseline gap-1 leading-none">
           <span className="text-lg font-bold text-white tracking-tight">True</span>
@@ -54,6 +49,7 @@ function TrueSignalLogo() {
 
 function Header({ dateRange, setDateRange }) {
   const { pathname } = useLocation();
+  const { user, logout } = useAuth();
   const isRealtime = REALTIME_PATHS.includes(pathname);
 
   return (
@@ -93,30 +89,69 @@ function Header({ dateRange, setDateRange }) {
               </button>
             </>
           )}
-          <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse ml-3"></div>
+          <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse ml-3" />
           <span className="text-xs text-emerald-300 font-medium">Live</span>
+          {user && (
+            <>
+              <span className="text-slate-600 ml-2">|</span>
+              <span className="text-xs text-slate-400 ml-1">{user.name}</span>
+              <button onClick={logout}
+                className="text-xs text-slate-500 hover:text-slate-300 ml-1 transition-colors">
+                Sign out
+              </button>
+            </>
+          )}
         </div>
       </div>
     </header>
   );
 }
 
-export default function App() {
-  const [dateRange, setDateRange] = useState(30);
+// Redirects to /login if not authenticated
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-slate-400 animate-pulse">Loading…</div>
+    </div>
+  );
+  return user ? children : <Navigate to="/login" replace />;
+}
 
+function Dashboard() {
+  const [dateRange, setDateRange] = useState(30);
+  return (
+    <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
+      <Header dateRange={dateRange} setDateRange={setDateRange} />
+      <Nav basePath="/dashboard" />
+      <div className="flex-1 overflow-hidden">
+        <Routes>
+          <Route path="/"        element={<Overview dateRange={dateRange} />} />
+          <Route path="/assets"  element={<AssetHealth dateRange={dateRange} />} />
+          <Route path="/savings" element={<CostSavings dateRange={dateRange} />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
   return (
     <BrowserRouter>
-      <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
-        <Header dateRange={dateRange} setDateRange={setDateRange} />
-        <Nav />
-        <div className="flex-1 overflow-hidden">
-          <Routes>
-            <Route path="/" element={<Overview dateRange={dateRange} />} />
-            <Route path="/assets" element={<AssetHealth dateRange={dateRange} />} />
-            <Route path="/savings" element={<CostSavings dateRange={dateRange} />} />
-          </Routes>
-        </div>
-      </div>
+      <AuthProvider>
+        <Routes>
+          <Route path="/"        element={<Landing />} />
+          <Route path="/login"   element={<Login />} />
+          <Route path="/signup"  element={<Signup />} />
+          <Route path="/dashboard/*" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

@@ -24,6 +24,7 @@ from .db import (
 )
 # Add this with your other imports
 from .api_predictions import router as predictions_router
+from .api_auth import router as auth_router
 
 # Pydantic models for API responses
 class KPIRecord(BaseModel):
@@ -62,13 +63,14 @@ app = FastAPI(
 # ADD CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Your frontend URL
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 # Include prediction routes
 app.include_router(predictions_router)
+app.include_router(auth_router)
 
 @app.get("/", tags=["Root"])
 async def root() -> Dict[str, Any]:
