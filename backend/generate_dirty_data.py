@@ -136,10 +136,22 @@ def generate_high_risk_assets():
 
 
 def generate_cost_savings_assets():
-    """60 well-maintained assets: frequent PMs, zero reactive work."""
+    """60 well-maintained assets: frequent PMs, zero reactive work.
+    Split across 3 equipment types so Cost Savings shows real asset names.
+    """
     rows = []
+    # AHU-001..020, HEX-001..020, VFD-001..020
+    type_map = {}
     for i in range(1, 61):
-        asset_id = f"MAINT-{i:03d}"
+        if i <= 20:
+            type_map[i] = f"AHU-{i:03d}"
+        elif i <= 40:
+            type_map[i] = f"HEX-{(i - 20):03d}"
+        else:
+            type_map[i] = f"VFD-{(i - 40):03d}"
+
+    for i in range(1, 61):
+        asset_id = type_map[i]
         site = "Plant C"
 
         # 3 PM COMPLETED work orders spaced 14 days apart
@@ -174,10 +186,13 @@ def generate_background_assets():
     types = ["PM", "Reactive", "Emergency"]
     statuses = ["Completed", "Pending", "In Progress", "Cancelled"]
     priorities = ["Low", "Medium", "High", "Critical"]
+    # Real equipment type prefixes for background fleet
+    bg_types = ["HVAC", "CW", "CHW", "FAN", "RTU", "BOIL", "CTW", "EXH"]
 
     for _ in range(300):
         asset_num = random.randint(100, 999)
-        asset_id = f"ASSET-{asset_num}"
+        prefix = random.choice(bg_types)
+        asset_id = f"{prefix}-{asset_num}"
         wo_type = random.choice(types)
         status = random.choice(statuses)
         days_ago = random.randint(0, 180)
@@ -254,7 +269,7 @@ def main():
     print(f"\nGenerated work orders:")
     print(f"  CRITICAL assets (PUMP-001..007): {len(critical_rows)} WOs")
     print(f"  HIGH risk assets (COMP-001..015): {len(high_rows)} WOs")
-    print(f"  Cost savings assets (MAINT-001..060): {len(savings_rows)} WOs")
+    print(f"  Cost savings assets (AHU/HEX/VFD): {len(savings_rows)} WOs")
     print(f"  Background noise: {len(background_rows)} WOs")
     print(f"  TOTAL: {len(all_rows)} work orders")
 
