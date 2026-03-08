@@ -9,6 +9,49 @@ import './App.css';
 // Pages where the date slicer doesn't apply
 const REALTIME_PATHS = ['/assets', '/savings'];
 
+function TrueSignalLogo() {
+  return (
+    <div className="flex items-center gap-3">
+      {/* Signal waveform icon */}
+      <svg width="44" height="28" viewBox="0 0 44 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sigGrad" x1="0" y1="0" x2="44" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#34d399" />
+          </linearGradient>
+          <filter id="sigGlow" x="-20%" y="-40%" width="140%" height="180%">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {/* flat — rise — spike — fall — flat */}
+        <polyline
+          points="0,14 8,14 11,14 14,3 17,25 20,14 22,14 44,14"
+          stroke="url(#sigGrad)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          filter="url(#sigGlow)"
+        />
+        {/* Pulse dot at spike peak */}
+        <circle cx="14" cy="3" r="2.5" fill="#34d399" opacity="0.9" filter="url(#sigGlow)" />
+      </svg>
+
+      {/* Wordmark */}
+      <div>
+        <div className="flex items-baseline gap-1 leading-none">
+          <span className="text-lg font-bold text-white tracking-tight">True</span>
+          <span className="text-lg font-bold tracking-tight" style={{ color: '#34d399' }}>Signal</span>
+        </div>
+        <p className="text-[10px] text-indigo-300/70 font-medium tracking-widest uppercase leading-none mt-0.5">
+          Maintenance Intelligence
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Header({ dateRange, setDateRange }) {
   const { pathname } = useLocation();
   const isRealtime = REALTIME_PATHS.includes(pathname);
@@ -16,10 +59,7 @@ function Header({ dateRange, setDateRange }) {
   return (
     <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-800/30 shadow-2xl sticky top-0 z-20">
       <div className="w-full px-6 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Maintenance Analytics</h1>
-          <p className="text-xs text-indigo-300 font-medium">TrueSignal Intelligence Platform</p>
-        </div>
+        <TrueSignalLogo />
         <div className="flex items-center gap-2">
           {isRealtime ? (
             <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
