@@ -102,6 +102,20 @@ These ship after the first paying customer. Each one increases retention and ups
 
 ---
 
+## Legal Structure
+
+```
+SignalGroup LLC (Holding Company)
+  ├── TrueSignal LLC (maintenance analytics SaaS)
+  └── [Future Company] LLC (manufacturing data — TBD)
+```
+
+- Each subsidiary is liability-isolated — one can't affect the other
+- Separate valuations, fundraising, and potential exits per entity
+- Start LLC formation with a business attorney — do not DIY
+
+---
+
 ## Shortest Path to First Paying Customer
 
 ```
