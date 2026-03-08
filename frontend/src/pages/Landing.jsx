@@ -19,9 +19,9 @@ const FEATURES = [
 ];
 
 const STATS = [
-  { value: '378', label: 'Assets monitored' },
-  { value: '$55K+', label: 'Annual savings identified' },
-  { value: '< 1s', label: 'Dashboard load time' },
+  { value: 'Days early', label: 'Know about failures before they happen' },
+  { value: 'Real savings', label: 'Quantified PM optimization opportunities' },
+  { value: 'Your data', label: 'Works from your existing CMMS history' },
 ];
 
 function Logo() {
