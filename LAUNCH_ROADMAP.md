@@ -6,29 +6,59 @@
 
 ## Where We Are
 
-The core product is built and demo-ready. Three-page analytics dashboard, predictive failure engine, PM optimization, live KPI tracking — all working against real synthetic data shaped like MaintNext exports. The platform is ready to show a customer.
+The core product is built and demo-ready. Three-page analytics dashboard, predictive failure engine, PM optimization, live KPI tracking, auth (signup/login/JWT), and a marketing landing page — all working. Platform is ready to show a customer.
 
 ---
 
-## Phase 1 — Close the MVP (Now)
+## Phase 1 — MVP Polish ✅ COMPLETE
 
-Small data quality and polish items before any customer sees it.
-
-| # | Task | Detail |
+| # | Task | Status |
 |---|------|--------|
-| 1 | **Logo / branding** | Replace text subtitle in header with logo SVG |
-| 2 | **Asset type encoding** | Rename `ASSET-XXX` → `PUMP-XXX`, `HVAC-XXX`, etc. in pipeline — makes Asset Health page readable by type |
-| 3 | **`MAINT-XXX` / `ASSET-XXX` ID mismatch** | PM optimization and failure predictions use different ID schemes — backend join needed so Cost Savings references real assets |
+| 1 | Logo / branding (EKG waveform SVG) | ✅ Done |
+| 2 | Asset type encoding (ASSET-XXX → real types) | ✅ Done |
+| 3 | MAINT-XXX / ASSET-XXX ID mismatch | ✅ Done |
+| 4 | Date slicer working on Overview | ✅ Done |
+| 5 | Urgency histogram shows all assets | ✅ Done |
+| 6 | Landing page + Auth (signup / login / JWT) | ✅ Done |
 
 ---
 
-## Phase 2 — Customer Demo Ready
+## Phase 2 — MaintainX Integration (Current)
 
+**Why MaintainX first:** #1 rated CMMS on G2, fastest growing in mid-market. Their top user complaint is poor analytics and reporting (57 G2 mentions) — exactly what TrueSignal solves. TrueSignal is not competing with MaintainX, it's the intelligence layer on top of it.
+
+**Positioning:** *"Keep using MaintainX for work orders. Connect TrueSignal to get failure predictions, PM optimization, and KPI intelligence your MaintainX dashboard can't show you."*
+
+### Integration Architecture
+```
+Customer signs up on TrueSignal
+  → pastes MaintainX API key (one-time, ~2 min setup)
+  → TrueSignal pulls work orders + assets on daily schedule
+  → pipeline runs automatically
+  → dashboard populates with their real data
+```
+
+### Build Order
 | # | Task | Detail |
 |---|------|--------|
-| 4 | **Auth / Login** | Simple JWT login page — single-tenant for first customer. Blocks public exposure. |
-| 5 | **MaintNext integration** | Pull live WO/PM data via MaintNext API instead of synthetic data. Biggest credibility leap. |
-| 6 | **CMMS webhook for PM status** | Pending → Accepted → Implemented flow on Cost Savings page. Webhooks from MaintNext fire when a PM suggestion is actioned. |
+| 1 | **Settings page** | Where customer enters their MaintainX API key after signup |
+| 2 | **MaintainX adapter** | Pulls `/workorders` + `/assets` → maps to internal work_orders schema |
+| 3 | **Sync worker** | Daily job: fetch new WOs → run pipeline → update dashboard |
+| 4 | **Empty state** | New user sees "Connect your CMMS" prompt before data loads |
+| 5 | **Multi-tenant scoping** | Scope all DB queries by org_id so each customer sees only their data |
+
+### Auth approach
+- **MVP:** API key — user generates in MaintainX Settings → Integrations → pastes into TrueSignal once. Fast to build, acceptable UX for B2B.
+- **Post-launch:** Upgrade to OAuth ("Connect MaintainX" button) once there are real customers and potentially a MaintainX partnership.
+
+### Adapter pattern (scales to all CMMS)
+```
+MaintainX adapter ─┐
+Limble adapter    ─┤─→ normalized work_orders schema → pipeline → dashboard
+UpKeep adapter    ─┤
+Fiix adapter      ─┘
+```
+Build MaintainX first, same pattern applies to every other CMMS.
 
 ---
 
@@ -36,10 +66,10 @@ Small data quality and polish items before any customer sees it.
 
 | # | Task | Detail |
 |---|------|--------|
-| 7 | **Database migration** | Move off local SQLite → hosted Postgres (Railway, Supabase, or Neon). Required before any customer data touches it. |
-| 8 | **Multi-tenant** | Scope all DB queries by `org_id`. One database, multiple customers isolated by row-level security. |
-| 9 | **Deployment** | Frontend → Vercel or Netlify. Backend → Railway or Fly.io. Custom domain + SSL. |
-| 10 | **Legal** | LLC formation, MSA/SaaS ToS template, Data Processing Agreement (DPA) for customer maintenance data. |
+| 1 | **Database migration** | SQLite → hosted Postgres (Railway, Supabase, or Neon) |
+| 2 | **Deployment** | Frontend → Vercel. Backend → Railway or Fly.io. Custom domain + SSL. |
+| 3 | **Legal** | LLC formation, MSA/SaaS ToS, Data Processing Agreement (DPA) |
+| 4 | **Billing** | Stripe — per-seat or per-asset pricing |
 
 ---
 
@@ -47,32 +77,20 @@ Small data quality and polish items before any customer sees it.
 
 | # | Task | Detail |
 |---|------|--------|
-| 11 | **Email alerts** | "3 new CRITICAL assets this week" weekly digest — keeps customers engaged without logging in |
-| 12 | **PDF report export** | One-click monthly report for customer's ops leadership |
-| 13 | **Pricing / billing** | Stripe integration — seat-based or per-asset pricing |
+| 1 | **CMMS webhook for PM status** | MaintainX pushes Accepted/Implemented back to TrueSignal when PMs are actioned |
+| 2 | **Additional CMMS adapters** | Limble, UpKeep, Fiix — same pattern as MaintainX |
+| 3 | **Email alerts** | Weekly digest: "3 new CRITICAL assets this week" |
+| 4 | **PDF report export** | One-click monthly report for customer's leadership |
+| 5 | **OAuth for MaintainX** | Replace API key paste with "Connect MaintainX" button |
 
 ---
 
 ## Shortest Path to First Paying Customer
 
 ```
-Phase 1 (data quality + logo)
-  → Auth (login wall)
-  → MaintNext integration (real data)
+MaintainX integration (API key, daily sync)
+  → Multi-tenant data scoping
   → Deploy to hosted URL
   → Legal (LLC + MSA)
   → First customer
 ```
-
-Legal can run in parallel with everything. Everything in Phase 4 is post-revenue.
-
----
-
-## Stack Reference
-
-| Layer | Tech |
-|-------|------|
-| Frontend | React 18, Vite, Tailwind CSS, Recharts |
-| Backend | Python, FastAPI, SQLite (→ Postgres) |
-| Data pipeline | Custom Python — pulls from MaintNext, calculates KPIs, runs predictions |
-| Hosting (target) | Vercel (frontend) + Railway (backend + DB) |
