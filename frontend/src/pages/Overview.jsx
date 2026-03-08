@@ -194,6 +194,7 @@ export default function Overview({ dateRange }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [dailyKPIs, setDailyKPIs] = useState([]);
   const [failurePredictions, setFailurePredictions] = useState([]);
+  const [pmSavings, setPmSavings] = useState(0);
 
   useEffect(() => {
     load();
@@ -205,13 +206,16 @@ export default function Overview({ dateRange }) {
       setError(null);
 
       const timeParams = dateRange ? { days: dateRange } : {};
-      const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
+      const [dashboardRes, kpisRes, predictionsRes, pmRes] = await Promise.all([
         getPredictions.dashboard(),
         getKPIs.daily({ limit: 100, ...timeParams }),
         getPredictions.failures({ limit: 1000, ...timeParams }),
+        getPredictions.pmOptimization({ limit: 1000, status: 'pending', ...timeParams }),
       ]);
 
       setDashboardData(dashboardRes.data);
+      const pmData = pmRes.data || [];
+      setPmSavings(pmData.reduce((sum, p) => sum + (p.estimated_cost_savings || 0), 0));
 
       const kpiMap = new Map();
       (kpisRes.data || []).forEach(k => {
@@ -263,7 +267,7 @@ export default function Overview({ dateRange }) {
     total_assets_monitored: failurePredictions.length,
     high_risk_assets: failurePredictions.filter(p => p.risk_level === 'HIGH' || p.risk_level === 'CRITICAL').length,
     critical_risk_assets: failurePredictions.filter(p => p.risk_level === 'CRITICAL').length,
-    total_cost_savings_potential: summary.total_cost_savings_potential || 0,
+    total_cost_savings_potential: pmSavings,
   };
 
   const filteredInsights = dateRange

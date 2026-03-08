@@ -306,11 +306,16 @@ async def get_pm_optimization_suggestions_endpoint(
         ge=1,
         le=1000,
         description="Maximum number of suggestions to return"
+    ),
+    days: Optional[int] = Query(
+        None,
+        ge=1,
+        description="Only return suggestions from the last N days"
     )
 ) -> List[Dict[str, Any]]:
     """
     Retrieve PM optimization suggestions.
-    
+
     Returns suggestions sorted by cost savings (highest first).
     """
     try:
@@ -320,10 +325,14 @@ async def get_pm_optimization_suggestions_endpoint(
             min_savings=min_savings,
             limit=limit
         )
-        
+
         if df.empty:
             return []
-        
+
+        if days and 'suggestion_date' in df.columns:
+            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            df = df[df['suggestion_date'] >= cutoff]
+
         return _clean_records(df.to_dict('records'))
         
     except PredictionStorageError as e:

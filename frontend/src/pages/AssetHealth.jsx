@@ -163,11 +163,14 @@ export default function AssetHealth({ dateRange }) {
     })
     .slice(0, 7);
 
-  // Urgency histogram — assets bucketed by days_to_predicted_failure
-  const withDays = filtered.filter(p => p.days_to_predicted_failure != null);
+  // Urgency histogram — all assets bucketed by days_to_predicted_failure.
+  // Assets with no predicted failure window (LOW/MEDIUM, null) are treated as 90+d (healthy).
   const histData = URGENCY_BUCKETS.map(b => ({
     label: b.label,
-    count: withDays.filter(p => p.days_to_predicted_failure >= b.min && p.days_to_predicted_failure <= b.max).length,
+    count: filtered.filter(p => {
+      const days = p.days_to_predicted_failure ?? 999;
+      return days >= b.min && days <= b.max;
+    }).length,
     color: b.color,
   }));
 
