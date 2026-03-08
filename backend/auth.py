@@ -7,7 +7,7 @@ from typing import Optional
 from pathlib import Path
 import sqlite3
 
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -16,8 +16,6 @@ ALGORITHM  = "HS256"
 TOKEN_EXPIRE_DAYS = 7
 
 DB_PATH = Path(__file__).parent.parent / "data" / "db" / "truesignal.db"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── DB setup ──────────────────────────────────────────────────────────────────
 
@@ -38,10 +36,10 @@ def init_users_table():
 # ── Password ──────────────────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 
