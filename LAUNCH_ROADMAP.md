@@ -25,31 +25,18 @@ The core product is built and demo-ready. Three-page analytics dashboard, predic
 
 ## Phase 2 — Pre-Launch Polish (Before First Customer)
 
-These items must be done before any real customer uses the product.
-
 | # | Task | Detail |
 |---|------|--------|
 | 1 | **Reset password** | Forgot password flow — email with reset link. Needs domain + email service (Resend) first. |
-| 2 | **Demo account + demo data** | A locked `demo@truesignal.io` account that shows realistic synthetic data. Used for sales calls and prospects who want to self-explore without connecting their CMMS. |
-| 3 | **Realistic cost savings data** | Current PM suggestions are all identical ($920, same reason, same freq). Need varied savings amounts, different asset types, different reasons, different frequency changes to look credible. |
-| 4 | **Empty state / onboarding** | New real user (non-demo) sees "Connect your CMMS" prompt instead of someone else's data. |
+| 2 | **Demo account + demo data** | Locked `demo@truesignal.io` account with realistic synthetic data. Used for sales calls and self-guided prospects. |
+| 3 | **Realistic cost savings data** | Current PM suggestions are identical. Need varied savings amounts, asset types, reasons, and frequency changes to look credible. |
+| 4 | **Empty state / onboarding** | New real user sees "Connect your CMMS" prompt instead of someone else's data. |
 
 ---
 
 ## Phase 3 — MaintainX Integration (Current Priority)
 
-**Why MaintainX first:** #1 rated CMMS on G2, fastest growing in mid-market. Top user complaint is poor analytics (57 G2 mentions) — exactly what TrueSignal solves. TrueSignal is not competing with MaintainX, it's the intelligence layer on top of it.
-
 **Positioning:** *"Keep using MaintainX for work orders. Connect TrueSignal to get failure predictions, PM optimization, and KPI intelligence your MaintainX dashboard can't show you."*
-
-### Integration Architecture
-```
-Customer signs up on TrueSignal
-  → pastes MaintainX API key (one-time, ~2 min setup)
-  → TrueSignal pulls work orders + assets on daily schedule
-  → pipeline runs automatically
-  → dashboard populates with their real data
-```
 
 ### Build Order
 | # | Task | Detail |
@@ -80,19 +67,38 @@ Fiix adapter      ─┘
 | 1 | **Database migration** | SQLite → hosted Postgres (Railway, Supabase, or Neon) |
 | 2 | **Deployment** | Frontend → Vercel. Backend → Railway or Fly.io. Custom domain + SSL. |
 | 3 | **Legal** | LLC formation, MSA/SaaS ToS, Data Processing Agreement (DPA) |
-| 4 | **Billing** | Stripe — per-seat or per-asset pricing |
+| 4 | **Billing + pricing** | Stripe integration — subscription management, per-seat or per-asset pricing tiers. Payment wall before dashboard access after trial ends. |
 
 ---
 
-## Phase 5 — Growth
+## Phase 5 — Growth Features
 
+These ship after the first paying customer. Each one increases retention and upsell potential.
+
+### Reporting
 | # | Task | Detail |
 |---|------|--------|
-| 1 | **CMMS webhook for PM status** | MaintainX pushes Accepted/Implemented back when PMs are actioned |
-| 2 | **Additional CMMS adapters** | Limble, UpKeep, Fiix — same pattern as MaintainX |
-| 3 | **Email alerts** | Weekly digest: "3 new CRITICAL assets this week" |
-| 4 | **PDF report export** | One-click monthly report for customer's leadership |
-| 5 | **OAuth for MaintainX** | Replace API key paste with "Connect MaintainX" button |
+| 1 | **PDF report — Overview** | One-click export of fleet health score, risk breakdown, KPI summary, and insights for the selected time range |
+| 2 | **PDF report — Asset Health** | Full asset risk list, urgency breakdown, top critical assets with recommendations |
+| 3 | **PDF report — Cost Savings** | PM suggestion list, cumulative savings waterfall, status summary. Ready to hand to leadership. |
+
+### Notifications
+| # | Task | Detail |
+|---|------|--------|
+| 4 | **Email alerts** | Configurable triggers: new CRITICAL asset, weekly fleet digest, PM suggestion accepted. Uses Resend. |
+
+### AI Assistant
+| # | Task | Detail |
+|---|------|--------|
+| 5 | **In-app AI chatbot** | Floating chat widget across all dashboard pages. Answers questions about what the user is seeing, guides them through standard workflows (e.g. "how do I action a PM suggestion?"), and links to documentation. Powered by Claude API with platform context injected. |
+| 6 | **Documentation site** | Public docs at `docs.truesignal.io` — getting started, connecting MaintainX, understanding risk scores, reading the cost savings page, FAQ. The AI chatbot pulls from these docs. |
+
+### CMMS Expansion
+| # | Task | Detail |
+|---|------|--------|
+| 7 | **Additional CMMS adapters** | Limble, UpKeep, Fiix — same adapter pattern as MaintainX |
+| 8 | **OAuth for MaintainX** | Replace API key paste with "Connect MaintainX" button |
+| 9 | **CMMS webhook for PM status** | MaintainX pushes Accepted/Implemented back when PMs are actioned |
 
 ---
 
@@ -102,8 +108,11 @@ Fiix adapter      ─┘
 Realistic demo data + demo account
   → MaintainX integration (API key, daily sync)
   → Multi-tenant data scoping
-  → Deploy to hosted URL
-  → Legal (LLC + MSA)
+  → Deploy to hosted URL + custom domain
+  → Billing (Stripe)
+  → Legal (LLC + MSA) — start now, runs in parallel
   → Reset password (needs domain + email service)
   → First customer
 ```
+
+**Estimated:** 3–4 weeks of focused work.
