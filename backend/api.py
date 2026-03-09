@@ -25,6 +25,7 @@ from .db import (
 # Add this with your other imports
 from .api_predictions import router as predictions_router
 from .api_auth import router as auth_router
+from .api_settings import router as settings_router
 
 # Pydantic models for API responses
 class KPIRecord(BaseModel):
@@ -71,6 +72,7 @@ app.add_middleware(
 # Include prediction routes
 app.include_router(predictions_router)
 app.include_router(auth_router)
+app.include_router(settings_router)
 
 @app.get("/", tags=["Root"])
 async def root() -> Dict[str, Any]:

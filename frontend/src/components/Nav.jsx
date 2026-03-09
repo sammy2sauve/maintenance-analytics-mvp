@@ -14,6 +14,7 @@ export default function Nav({ basePath = '' }) {
         <NavLink to={`${basePath}/`} end className={linkClass}>Overview</NavLink>
         <NavLink to={`${basePath}/assets`} className={linkClass}>Asset Health</NavLink>
         <NavLink to={`${basePath}/savings`} className={linkClass}>Cost Savings</NavLink>
+        <NavLink to={`${basePath}/settings`} className={linkClass}>Settings</NavLink>
       </div>
     </nav>
   );
