@@ -23,18 +23,7 @@ The core product is built and demo-ready. Three-page analytics dashboard, predic
 
 ---
 
-## Phase 2 — Pre-Launch Polish (Before First Customer)
-
-| # | Task | Detail |
-|---|------|--------|
-| 1 | **Reset password** | Forgot password flow — email with reset link. Needs domain + email service (Resend) first. |
-| 2 | **Demo account + demo data** | Locked `demo@truesignal.io` account with realistic synthetic data. Used for sales calls and self-guided prospects. |
-| 3 | **Realistic cost savings data** | Current PM suggestions are identical. Need varied savings amounts, asset types, reasons, and frequency changes to look credible. |
-| 4 | **Empty state / onboarding** | New real user sees "Connect your CMMS" prompt instead of someone else's data. |
-
----
-
-## Phase 3 — MaintainX Integration (Current Priority)
+## Phase 2 — MaintainX Integration (Current Priority)
 
 **Positioning:** *"Keep using MaintainX for work orders. Connect TrueSignal to get failure predictions, PM optimization, and KPI intelligence your MaintainX dashboard can't show you."*
 
@@ -57,6 +46,17 @@ Limble adapter    ─┤─→ normalized work_orders schema → pipeline → da
 UpKeep adapter    ─┤
 Fiix adapter      ─┘
 ```
+
+---
+
+## Phase 3 — Pre-Launch Polish (Before First Customer)
+
+| # | Task | Detail |
+|---|------|--------|
+| 1 | **Reset password** | Forgot password flow — email with reset link. Needs domain + email service (Resend) first. |
+| 2 | **Demo account + demo data** | Locked `demo@truesignal.io` account with realistic synthetic data. Used for sales calls and self-guided prospects. |
+| 3 | **Realistic cost savings data** | Current PM suggestions are identical. Need varied savings amounts, asset types, reasons, and frequency changes to look credible. |
+| 4 | **Empty state / onboarding** | New real user sees "Connect your CMMS" prompt instead of someone else's data. |
 
 ---
 
