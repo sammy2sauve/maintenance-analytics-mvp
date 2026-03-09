@@ -81,11 +81,20 @@ These ship after the first paying customer. Each one increases retention and ups
 | 1 | **PDF report — Overview** | One-click export of fleet health score, risk breakdown, KPI summary, and insights for the selected time range |
 | 2 | **PDF report — Asset Health** | Full asset risk list, urgency breakdown, top critical assets with recommendations |
 | 3 | **PDF report — Cost Savings** | PM suggestion list, cumulative savings waterfall, status summary. Ready to hand to leadership. |
+| 4 | **Custom reports** | User selects which sections to include (fleet health, risk breakdown, KPIs, PM suggestions, cost savings). Choose date range and output format (PDF or CSV). Saves configuration as a named report template. |
 
-### Notifications
+### Notifications & Scheduled Delivery
 | # | Task | Detail |
 |---|------|--------|
-| 4 | **Email alerts** | Configurable triggers: new CRITICAL asset, weekly fleet digest, PM suggestion accepted. Uses Resend. |
+| 5 | **Email alerts** | Configurable triggers: new CRITICAL asset, weekly fleet digest, PM suggestion accepted. Uses Resend. |
+| 6 | **Recurring report emails** | Schedule any saved report template to be emailed automatically — daily, weekly, or monthly. User sets recipients and delivery day/time. Built on top of the custom reports feature. |
+| 7 | **One-time report emails** | Send a generated report to any email address on-demand from within the dashboard. Useful for sharing with stakeholders who don't have TrueSignal logins. |
+
+### Dashboard Customization
+| # | Task | Detail |
+|---|------|--------|
+| 8 | **Widget layout customization** | Drag-and-drop dashboard layout — users pin/hide/reorder cards and charts. Saved per user account. |
+| 9 | **Saved views** | Users name and save their preferred date range + visible widget set. Switch between views with one click (e.g. "Weekly Leadership View", "Daily Ops View"). |
 
 ### AI Assistant
 | # | Task | Detail |
@@ -99,6 +108,28 @@ These ship after the first paying customer. Each one increases retention and ups
 | 7 | **Additional CMMS adapters** | Limble, UpKeep, Fiix — same adapter pattern as MaintainX |
 | 8 | **OAuth for MaintainX** | Replace API key paste with "Connect MaintainX" button |
 | 9 | **CMMS webhook for PM status** | MaintainX pushes Accepted/Implemented back when PMs are actioned |
+
+---
+
+## Security & Legal Compliance
+
+These items run in parallel with Phase 3–4 and must be resolved before signing any paying customer.
+
+### Legal Documents
+| # | Task | Detail |
+|---|------|--------|
+| 1 | **Terms & Conditions / Terms of Service** | User rights, prohibited uses, liability limits, termination clauses. Required before any paid plan goes live. Use a SaaS attorney or a vetted template service (Bonterms, Clerky). |
+| 2 | **Privacy Policy** | What data you collect, how it's stored, who it's shared with, user rights (deletion, export). Required by law in most jurisdictions. |
+| 3 | **Data Processing Agreement (DPA)** | Required by GDPR/CCPA customers. Governs how TrueSignal handles customer work order data on their behalf. |
+| 4 | **Master Service Agreement (MSA)** | Enterprise contract for B2B deals. Covers SLAs, data ownership, indemnification, confidentiality. |
+
+### Data Security
+| # | Task | Detail |
+|---|------|--------|
+| 5 | **Hosted database security** | Data security is largely inherited from the hosting provider. Supabase, Railway, and Neon all include encryption at rest and in transit, access controls, and backups. Choose a provider, document it in your DPA. |
+| 6 | **Secrets management** | Move JWT secret key and API keys out of source code into environment variables. Use hosting provider's secrets manager (Railway/Fly.io have native support). |
+| 7 | **API security hardening** | Rate limiting on auth endpoints, HTTPS-only, CORS locked to production domain, no sensitive data in logs. |
+| 8 | **SOC 2 Type II** | Long-term goal — required by enterprise customers and procurement teams. Start tracking the controls now (access logs, change management, incident response). Formal audit comes when you have the revenue to justify it (~$500K ARR). |
 
 ---
 
