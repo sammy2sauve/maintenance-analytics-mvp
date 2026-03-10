@@ -152,7 +152,11 @@ async def get_failure_predictions(
         None,
         ge=1,
         description="Only return predictions from the last N days"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Retrieve asset failure predictions.
@@ -165,7 +169,8 @@ async def get_failure_predictions(
             asset_id=asset_id,
             risk_level=risk_level,
             min_probability=min_probability,
-            limit=10000
+            limit=10000,
+            location_id=location_id,
         )
 
         if df.empty:
@@ -213,17 +218,22 @@ async def get_high_risk_assets_endpoint(
         ge=1,
         le=500,
         description="Maximum number of assets to return"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Get assets with high failure risk.
-    
+
     Convenience endpoint for monitoring critical assets.
     """
     try:
         df = get_high_risk_assets(
             min_probability=min_probability,
-            limit=limit
+            limit=limit,
+            location_id=location_id,
         )
         
         if df.empty:
@@ -318,7 +328,11 @@ async def get_pm_optimization_suggestions_endpoint(
         None,
         ge=1,
         description="Only return suggestions from the last N days"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Retrieve PM optimization suggestions.
@@ -330,7 +344,8 @@ async def get_pm_optimization_suggestions_endpoint(
             asset_id=asset_id,
             status=status,
             min_savings=min_savings,
-            limit=limit
+            limit=limit,
+            location_id=location_id,
         )
 
         if df.empty:
@@ -371,17 +386,22 @@ async def get_cost_savings_endpoint(
         ge=1,
         le=500,
         description="Maximum number of suggestions to return"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Get cost-saving opportunities.
-    
+
     Convenience endpoint for identifying top savings opportunities.
     """
     try:
         df = get_cost_saving_opportunities(
             min_savings=min_savings,
-            limit=limit
+            limit=limit,
+            location_id=location_id,
         )
         
         if df.empty:
@@ -471,18 +491,23 @@ async def get_maintenance_insights_endpoint(
         ge=1,
         le=1000,
         description="Maximum number of insights to return"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Retrieve maintenance insights.
-    
+
     Returns insights sorted by date and confidence score.
     """
     try:
         df = retrieve_maintenance_insights(
             insight_type=insight_type,
             impact_level=impact_level,
-            limit=limit
+            limit=limit,
+            location_id=location_id,
         )
         
         if df.empty:
@@ -514,17 +539,22 @@ async def get_high_impact_insights(
         ge=1,
         le=100,
         description="Maximum number of insights to return"
-    )
+    ),
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
 ) -> List[Dict[str, Any]]:
     """
     Get high-impact maintenance insights.
-    
+
     Convenience endpoint for prioritizing actionable insights.
     """
     try:
         df = retrieve_maintenance_insights(
             impact_level="HIGH",
-            limit=limit
+            limit=limit,
+            location_id=location_id,
         )
         
         if df.empty:
@@ -554,40 +584,38 @@ async def get_high_impact_insights(
     summary="Get prediction summary statistics",
     description="Get overview statistics for all predictions and suggestions"
 )
-async def get_prediction_summary() -> Dict[str, Any]:
+async def get_prediction_summary(
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
+) -> Dict[str, Any]:
     """
     Get summary statistics for predictions.
-    
-    Provides a high-level overview of:
-    - Total assets monitored
-    - High-risk asset count
-    - Critical risk asset count
-    - Total cost savings potential
-    - Pending suggestions count
-    - Latest insights count
     """
     try:
         # Get all predictions
-        all_predictions = retrieve_failure_predictions(limit=10000)
-        
+        all_predictions = retrieve_failure_predictions(limit=10000, location_id=location_id)
+
         # Count by risk level
         total_assets = len(all_predictions)
-        high_risk = len(all_predictions[all_predictions['risk_level'] == 'HIGH'])
-        critical_risk = len(all_predictions[all_predictions['risk_level'] == 'CRITICAL'])
-        
+        high_risk = len(all_predictions[all_predictions['risk_level'] == 'HIGH']) if not all_predictions.empty else 0
+        critical_risk = len(all_predictions[all_predictions['risk_level'] == 'CRITICAL']) if not all_predictions.empty else 0
+
         # Get all pending suggestions
         pending_suggestions = retrieve_pm_optimization_suggestions(
             status='pending',
-            limit=10000
+            limit=10000,
+            location_id=location_id,
         )
-        
+
         # Calculate total savings potential
         total_savings = 0.0
         if not pending_suggestions.empty:
             total_savings = pending_suggestions['estimated_cost_savings'].sum()
-        
+
         # Get recent insights
-        recent_insights = retrieve_maintenance_insights(limit=10000)
+        recent_insights = retrieve_maintenance_insights(limit=10000, location_id=location_id)
         
         return {
             "total_assets_monitored": total_assets,
@@ -615,30 +643,29 @@ async def get_prediction_summary() -> Dict[str, Any]:
     summary="Get dashboard data",
     description="Get comprehensive data for prediction dashboard (all endpoints combined)"
 )
-async def get_prediction_dashboard() -> Dict[str, Any]:
+async def get_prediction_dashboard(
+    location_id: Optional[int] = Query(
+        None,
+        description="Filter by location ID"
+    ),
+) -> Dict[str, Any]:
     """
     Get comprehensive prediction dashboard data.
-    
-    Returns a single response with:
-    - Summary statistics
-    - Top 10 high-risk assets
-    - Top 10 cost-saving opportunities
-    - Latest 5 insights
     """
     try:
         # Get summary
-        summary = await get_prediction_summary()
-        
+        summary = await get_prediction_summary(location_id=location_id)
+
         # Get high-risk assets
-        high_risk_df = get_high_risk_assets(min_probability=0.5, limit=10)
+        high_risk_df = get_high_risk_assets(min_probability=0.5, limit=10, location_id=location_id)
         high_risk = _clean_records(high_risk_df.to_dict('records')) if not high_risk_df.empty else []
-        
+
         # Get cost savings
-        savings_df = get_cost_saving_opportunities(min_savings=50, limit=10)
+        savings_df = get_cost_saving_opportunities(min_savings=50, limit=10, location_id=location_id)
         cost_savings = _clean_records(savings_df.to_dict('records')) if not savings_df.empty else []
-        
+
         # Get insights
-        insights_df = retrieve_maintenance_insights(limit=5)
+        insights_df = retrieve_maintenance_insights(limit=5, location_id=location_id)
         insights = _clean_records(insights_df.to_dict('records')) if not insights_df.empty else []
         
         return {

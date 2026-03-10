@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs } from '../services/api';
 import { AlertCircle, DollarSign, Wrench, Activity } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import EmptyState from '../components/EmptyState';
 import {
   PieChart, Pie, Cell,
   Tooltip, ResponsiveContainer,
@@ -165,30 +167,35 @@ function InsightsPreview({ insights, onExport }) {
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        {insights.map((insight, idx) => (
-          <div key={idx} className="border-l-2 border-indigo-500 pl-2 py-1">
-            <p className="text-xs text-white font-medium leading-tight">{insight.title}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                insight.impact_level === 'HIGH' ? 'bg-red-500/20 text-red-400' :
-                insight.impact_level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
-                'bg-blue-500/20 text-blue-400'
-              }`}>
-                {insight.impact_level}
-              </span>
-              <span className="text-[10px] text-slate-400">
-                {(insight.confidence_score * 100).toFixed(0)}% conf
-              </span>
+      {insights.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">No insights yet — run the pipeline to generate patterns.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {insights.map((insight, idx) => (
+            <div key={idx} className="border-l-2 border-indigo-500 pl-2 py-1">
+              <p className="text-xs text-white font-medium leading-tight">{insight.title}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  insight.impact_level === 'HIGH' ? 'bg-red-500/20 text-red-400' :
+                  insight.impact_level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-blue-500/20 text-blue-400'
+                }`}>
+                  {insight.impact_level}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {(insight.confidence_score * 100).toFixed(0)}% conf
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function Overview({ dateRange }) {
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
@@ -196,21 +203,18 @@ export default function Overview({ dateRange }) {
   const [failurePredictions, setFailurePredictions] = useState([]);
   const [pmSavings, setPmSavings] = useState(0);
 
-  useEffect(() => {
-    load();
-  }, [dateRange]);
-
   const load = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const timeParams = dateRange ? { days: dateRange } : {};
+      const locParam = locationId ? { location_id: locationId } : {};
       const [dashboardRes, kpisRes, predictionsRes, pmRes] = await Promise.all([
         getPredictions.dashboard(),
-        getKPIs.daily({ limit: 100, ...timeParams }),
-        getPredictions.failures({ limit: 1000, ...timeParams }),
-        getPredictions.pmOptimization({ limit: 1000, status: 'pending', ...timeParams }),
+        getKPIs.daily({ limit: 100, ...timeParams, ...locParam }),
+        getPredictions.failures({ limit: 1000, ...timeParams, ...locParam }),
+        getPredictions.pmOptimization({ limit: 1000, status: 'pending', ...timeParams, ...locParam }),
       ]);
 
       setDashboardData(dashboardRes.data);
@@ -239,6 +243,12 @@ export default function Overview({ dateRange }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (hasApiKey) load();
+  }, [dateRange, hasApiKey, syncVersion]);
+
+  if (!hasApiKey) return <EmptyState />;
 
   if (loading) {
     return (
@@ -365,9 +375,7 @@ export default function Overview({ dateRange }) {
       </div>
 
       {/* Insights Preview */}
-      {filteredInsights.length > 0 && (
-        <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
-      )}
+      <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
     </main>
   );
 }

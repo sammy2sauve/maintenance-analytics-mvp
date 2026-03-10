@@ -43,7 +43,7 @@ def calculate_mtbf(df: pd.DataFrame, asset_id: str) -> Optional[float]:
     # Filter reactive work for this asset
     asset_reactive = df[
         (df['asset_id'] == asset_id) &
-        (df['type'].str.lower().str.contains('reactive', na=False)) &
+        (df['type'].str.lower().str.contains('reactive|corrective', na=False)) &
         (df['status'].str.lower().str.contains('complet', na=False))
     ].copy()
     
@@ -126,7 +126,7 @@ def count_recent_reactive_work(
     
     recent_reactive = df[
         (df['asset_id'] == asset_id) &
-        (df['type'].str.lower().str.contains('reactive', na=False)) &
+        (df['type'].str.lower().str.contains('reactive|corrective', na=False)) &
         (pd.to_datetime(df['creation_date'], errors='coerce') >= cutoff_date)
     ]
     
@@ -401,7 +401,7 @@ def analyze_pm_effectiveness_per_asset(df: pd.DataFrame, asset_id: str) -> Dict[
     # Get reactive work for this asset
     asset_reactive = df[
         (df['asset_id'] == asset_id) &
-        (df['type'].str.lower().str.contains('reactive', na=False))
+        (df['type'].str.lower().str.contains('reactive|corrective', na=False))
     ].copy()
     
     asset_reactive['creation_dt'] = pd.to_datetime(asset_reactive['creation_date'], errors='coerce')
@@ -591,7 +591,7 @@ def optimize_pm_schedules(df: pd.DataFrame) -> pd.DataFrame:
             pms_per_year_current = 365 / current_freq
             pms_per_year_suggested = 365 / suggested_freq
             pm_diff = pms_per_year_current - pms_per_year_suggested
-            estimated_savings = pm_diff * avg_pm_cost
+            estimated_savings = max(pm_diff * avg_pm_cost, 0)
             
             # Estimate risk change
             # Reducing frequency = slight risk increase
@@ -650,7 +650,7 @@ def detect_day_of_week_patterns(df: pd.DataFrame) -> List[Dict[str, Any]]:
     
     # Filter reactive work
     reactive_df = df[
-        df['type'].str.lower().str.contains('reactive', na=False)
+        df['type'].str.lower().str.contains('reactive|corrective', na=False)
     ].copy()
     
     if len(reactive_df) == 0:
@@ -781,7 +781,7 @@ def detect_asset_reliability_patterns(df: pd.DataFrame) -> List[Dict[str, Any]]:
     
     # Find assets with highest reactive work
     reactive_df = df[
-        df['type'].str.lower().str.contains('reactive', na=False)
+        df['type'].str.lower().str.contains('reactive|corrective', na=False)
     ]
     
     asset_reactive_counts = reactive_df['asset_id'].value_counts()
@@ -839,7 +839,7 @@ def detect_high_failure_assets(df: pd.DataFrame) -> List[Dict[str, Any]]:
 def detect_cost_saving_opportunities(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """Detect potential cost savings from optimizing maintenance."""
     insights = []
-    reactive_df = df[df['type'].str.lower().str.contains('reactive', na=False)].copy()
+    reactive_df = df[df['type'].str.lower().str.contains('reactive|corrective', na=False)].copy()
     
     if len(reactive_df) == 0:
         return insights
@@ -941,7 +941,7 @@ def detect_workload_imbalances(df: pd.DataFrame) -> List[Dict[str, Any]]:
 def detect_recurring_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """Detect recurring issues that suggest systemic problems."""
     insights = []
-    reactive_df = df[df['type'].str.lower().str.contains('reactive', na=False)].copy()
+    reactive_df = df[df['type'].str.lower().str.contains('reactive|corrective', na=False)].copy()
     
     if len(reactive_df) < 10:
         return insights

@@ -285,7 +285,7 @@ def store_kpis(
         log_step("STORE KPIs", "ERROR", str(e))
         raise PipelineError(f"Unexpected error during KPI storage: {str(e)}")
     
-def generate_and_store_predictions(df: pd.DataFrame) -> Tuple[int, int, int]:
+def generate_and_store_predictions(df: pd.DataFrame, location_id: Optional[int] = None) -> Tuple[int, int, int]:
     """
     Generate predictions and store them in database.
     
@@ -325,9 +325,9 @@ def generate_and_store_predictions(df: pd.DataFrame) -> Tuple[int, int, int]:
         # Store predictions
         log_step("STORE PREDICTIONS", "START")
         
-        pred_rows = store_failure_predictions(predictions_df) if not predictions_df.empty else 0
-        sugg_rows = store_pm_optimization_suggestions(suggestions_df) if not suggestions_df.empty else 0
-        insight_rows = store_maintenance_insights(insights_df) if not insights_df.empty else 0
+        pred_rows = store_failure_predictions(predictions_df, location_id=location_id) if not predictions_df.empty else 0
+        sugg_rows = store_pm_optimization_suggestions(suggestions_df, location_id=location_id) if not suggestions_df.empty else 0
+        insight_rows = store_maintenance_insights(insights_df, location_id=location_id) if not insights_df.empty else 0
         
         log_step("STORE PREDICTIONS", "SUCCESS", 
                 f"Stored {pred_rows} predictions, {sugg_rows} suggestions, {insight_rows} insights")
@@ -341,7 +341,7 @@ def generate_and_store_predictions(df: pd.DataFrame) -> Tuple[int, int, int]:
         log_step("GENERATE PREDICTIONS", "ERROR", str(e))
         raise PipelineError(f"Unexpected error during prediction generation: {str(e)}")
     
-def run_pipeline(verbose: bool = True) -> dict:
+def run_pipeline(verbose: bool = True, location_id: Optional[int] = 1) -> dict:
     """
     Execute the complete KPI calculation and storage pipeline.
     
@@ -399,7 +399,7 @@ def run_pipeline(verbose: bool = True) -> dict:
         results['kpis_stored'] = daily_rows + weekly_rows + monthly_rows
 
         # Stage 6: Generate and store predictions (NEW!)
-        pred_rows, sugg_rows, insight_rows = generate_and_store_predictions(df)
+        pred_rows, sugg_rows, insight_rows = generate_and_store_predictions(df, location_id=location_id)
         results['predictions_stored'] = pred_rows
         results['suggestions_stored'] = sugg_rows
         results['insights_stored'] = insight_rows

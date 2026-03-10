@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getPredictions } from '../services/api';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import EmptyState from '../components/EmptyState';
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -78,18 +80,17 @@ function WaterfallTooltip({ active, payload }) {
 }
 
 export default function CostSavings() {
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [pmData, setPmData]   = useState([]);
-
-  // Cost Savings is a current-state view — no date filter
-  useEffect(() => { load(); }, []);
 
   const load = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await getPredictions.pmOptimization({ limit: 1000 });
+      const locParam = locationId ? { location_id: locationId } : {};
+      const res = await getPredictions.pmOptimization({ limit: 1000, ...locParam });
       setPmData(res.data || []);
     } catch (err) {
       setError(err.message);
@@ -97,6 +98,11 @@ export default function CostSavings() {
       setLoading(false);
     }
   };
+
+  // Cost Savings is a current-state view — no date filter
+  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, syncVersion]);
+
+  if (!hasApiKey) return <EmptyState />;
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(npm install:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(npx vite:*)",
+      "Bash(winpty gh:*)",
+      "Bash(sed:*)",
+      "Bash(node:*)",
+      "Bash(npm run:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(\"C:\\\\Users\\\\sampc\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\":*)",
+      "WebFetch(domain:api.getmaintainx.com)",
+      "WebSearch",
+      "WebFetch(domain:www.g2.com)",
+      "WebFetch(domain:create-x.gatech.edu)",
+      "WebFetch(domain:atdc.org)",
+      "Bash(pip show:*)",
+      "WebFetch(domain:docs.getmaintainx.com)",
+      "WebFetch(domain:help.getmaintainx.com)",
+      "WebFetch(domain:maintainx.dev)",
+      "WebFetch(domain:community.getmaintainx.com)",
+      "Bash(PYTHONUTF8=1 python:*)",
+      "Bash(set PYTHONUTF8=1:*)",
+      "Bash(sqlite3:*)"
+    ]
+  }
+}

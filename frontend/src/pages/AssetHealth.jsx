@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getPredictions } from '../services/api';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import EmptyState from '../components/EmptyState';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const RISK_COLORS  = { LOW: '#34d399', MEDIUM: '#fbbf24', HIGH: '#fb923c', CRITICAL: '#f87171' };
@@ -85,21 +87,18 @@ function HistogramTooltip({ active, payload, label }) {
 }
 
 export default function AssetHealth({ dateRange }) {
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [search, setSearch]       = useState('');
 
-  // Asset Health is a current-state view — ignore the date range filter.
-  // We fetch ALL predictions and deduplicate to the most recent per asset,
-  // so the total count is stable and reflects the full monitored fleet.
-  useEffect(() => { load(); }, []);
-
   const load = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await getPredictions.failures({ limit: 1000 });
+      const locParam = locationId ? { location_id: locationId } : {};
+      const res = await getPredictions.failures({ limit: 1000, ...locParam });
       const data = res.data || [];
 
       // Keep only the latest prediction per asset
@@ -118,6 +117,13 @@ export default function AssetHealth({ dateRange }) {
       setLoading(false);
     }
   };
+
+  // Asset Health is a current-state view — ignore the date range filter.
+  // We fetch ALL predictions and deduplicate to the most recent per asset,
+  // so the total count is stable and reflects the full monitored fleet.
+  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, syncVersion]);
+
+  if (!hasApiKey) return <EmptyState />;
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">

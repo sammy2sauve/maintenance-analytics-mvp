@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const API = 'http://localhost:8000';
 
@@ -8,10 +9,12 @@ function authHeaders() {
 }
 
 export default function Settings() {
+  const { refreshLocation } = useAuth();
   const [connected, setConnected] = useState(null); // null = loading
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -37,10 +40,29 @@ export default function Settings() {
       setConnected(true);
       setApiKey('');
       setSuccess('MaintainX connected successfully.');
+      refreshLocation();
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSync() {
+    setError(''); setSuccess('');
+    setSyncing(true);
+    try {
+      const r = await fetch(`${API}/settings/maintainx-sync`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Sync failed');
+      setSuccess(`Sync complete — ${d.inserted} new, ${d.updated} updated.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -54,6 +76,7 @@ export default function Settings() {
       });
       setConnected(false);
       setSuccess('MaintainX disconnected.');
+      refreshLocation();
     } catch {
       setError('Failed to remove key.');
     } finally {
@@ -96,13 +119,22 @@ export default function Settings() {
               <p className="text-sm text-slate-300">
                 Your MaintainX API key is stored securely. TrueSignal syncs your work orders and assets daily.
               </p>
-              <button
-                onClick={handleRemove}
-                disabled={removing}
-                className="text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-              >
-                {removing ? 'Removing…' : 'Disconnect MaintainX'}
-              </button>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {syncing ? 'Syncing…' : 'Sync Now'}
+                </button>
+                <button
+                  onClick={handleRemove}
+                  disabled={removing}
+                  className="text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                >
+                  {removing ? 'Removing…' : 'Disconnect MaintainX'}
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-3">

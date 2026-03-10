@@ -71,7 +71,8 @@ def _prepare_prediction_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def store_failure_predictions(
     predictions_df: pd.DataFrame,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> int:
     """
     Store asset failure predictions to database.
@@ -121,9 +122,9 @@ def store_failure_predictions(
                     asset_id, prediction_date, failure_probability,
                     confidence_score, days_to_predicted_failure, mtbf_days,
                     days_since_last_pm, reactive_work_count_90d, risk_level,
-                    recommendation, created_at
+                    recommendation, created_at, location_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 row['asset_id'],
                 row['prediction_date'],
@@ -135,7 +136,8 @@ def store_failure_predictions(
                 row.get('reactive_work_count_90d'),
                 row['risk_level'],
                 row['recommendation'],
-                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                location_id,
             ))
             rows_affected += cursor.rowcount
         
@@ -150,7 +152,8 @@ def store_failure_predictions(
 
 def store_pm_optimization_suggestions(
     suggestions_df: pd.DataFrame,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> int:
     """
     Store PM optimization suggestions to database.
@@ -194,13 +197,13 @@ def store_pm_optimization_suggestions(
             cursor = conn.cursor()
             cursor.execute("""
                 REPLACE INTO pm_optimization_suggestions (
-                    asset_id, current_pm_frequency_days, 
+                    asset_id, current_pm_frequency_days,
                     suggested_pm_frequency_days, reason,
                     estimated_cost_savings, estimated_risk_change,
                     confidence_score, reactive_work_after_pm_count,
-                    suggestion_date, status, created_at
+                    suggestion_date, status, created_at, location_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 row['asset_id'],
                 row['current_pm_frequency_days'],
@@ -212,7 +215,8 @@ def store_pm_optimization_suggestions(
                 row.get('reactive_work_after_pm_count'),
                 row['suggestion_date'],
                 row.get('status', 'pending'),
-                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                location_id,
             ))
             rows_affected += cursor.rowcount
         
@@ -227,7 +231,8 @@ def store_pm_optimization_suggestions(
 
 def store_maintenance_insights(
     insights_df: pd.DataFrame,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> int:
     """
     Store maintenance insights to database.
@@ -269,12 +274,12 @@ def store_maintenance_insights(
         for _, row in df_prepared.iterrows():
             cursor = conn.cursor()
             cursor.execute("""
-                Replace INTO maintenance_insights (
+                REPLACE INTO maintenance_insights (
                     insight_type, title, description,
                     confidence_score, impact_level, affected_assets,
-                    metric_value, insight_date, created_at
+                    metric_value, insight_date, created_at, location_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 row['insight_type'],
                 row['title'],
@@ -284,7 +289,8 @@ def store_maintenance_insights(
                 row.get('affected_assets'),
                 row.get('metric_value'),
                 row['insight_date'],
-                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                location_id,
             ))
             rows_affected += cursor.rowcount
         
@@ -304,7 +310,8 @@ def retrieve_failure_predictions(
     risk_level: Optional[str] = None,
     min_probability: Optional[float] = None,
     limit: int = 100,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Retrieve asset failure predictions from database.
@@ -331,19 +338,23 @@ def retrieve_failure_predictions(
         # Build query with filters
         query = "SELECT * FROM asset_failure_predictions WHERE 1=1"
         params = []
-        
+
+        if location_id is not None:
+            query += " AND location_id = ?"
+            params.append(location_id)
+
         if asset_id:
             query += " AND asset_id = ?"
             params.append(asset_id)
-        
+
         if risk_level:
             query += " AND risk_level = ?"
             params.append(risk_level.upper())
-        
+
         if min_probability is not None:
             query += " AND failure_probability >= ?"
             params.append(min_probability)
-        
+
         query += " ORDER BY failure_probability DESC, prediction_date DESC LIMIT ?"
         params.append(limit)
         
@@ -367,7 +378,8 @@ def retrieve_pm_optimization_suggestions(
     status: str = 'pending',
     min_savings: Optional[float] = None,
     limit: int = 100,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Retrieve PM optimization suggestions from database.
@@ -394,19 +406,23 @@ def retrieve_pm_optimization_suggestions(
         # Build query with filters
         query = "SELECT * FROM pm_optimization_suggestions WHERE 1=1"
         params = []
-        
+
+        if location_id is not None:
+            query += " AND location_id = ?"
+            params.append(location_id)
+
         if asset_id:
             query += " AND asset_id = ?"
             params.append(asset_id)
-        
+
         if status:
             query += " AND status = ?"
             params.append(status)
-        
+
         if min_savings is not None:
             query += " AND estimated_cost_savings >= ?"
             params.append(min_savings)
-        
+
         query += " ORDER BY estimated_cost_savings DESC, suggestion_date DESC LIMIT ?"
         params.append(limit)
         
@@ -428,7 +444,8 @@ def retrieve_maintenance_insights(
     insight_type: Optional[str] = None,
     impact_level: Optional[str] = None,
     limit: int = 100,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Retrieve maintenance insights from database.
@@ -454,15 +471,19 @@ def retrieve_maintenance_insights(
         # Build query with filters
         query = "SELECT * FROM maintenance_insights WHERE 1=1"
         params = []
-        
+
+        if location_id is not None:
+            query += " AND location_id = ?"
+            params.append(location_id)
+
         if insight_type:
             query += " AND insight_type = ?"
             params.append(insight_type)
-        
+
         if impact_level:
             query += " AND impact_level = ?"
             params.append(impact_level.upper())
-        
+
         query += " ORDER BY insight_date DESC, confidence_score DESC LIMIT ?"
         params.append(limit)
         
@@ -483,51 +504,39 @@ def retrieve_maintenance_insights(
 def get_high_risk_assets(
     min_probability: float = 0.5,
     limit: int = 50,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Get assets with high failure risk.
-    
+
     Convenience function for retrieving critical and high-risk assets.
-    
-    Args:
-        min_probability: Minimum failure probability (default 0.5)
-        limit: Maximum number of records to return
-        db_path: Optional path to database file
-        
-    Returns:
-        DataFrame with high-risk assets
     """
     return retrieve_failure_predictions(
         min_probability=min_probability,
         limit=limit,
-        db_path=db_path
+        db_path=db_path,
+        location_id=location_id,
     )
 
 
 def get_cost_saving_opportunities(
     min_savings: float = 100.0,
     limit: int = 50,
-    db_path: Optional[Path] = None
+    db_path: Optional[Path] = None,
+    location_id: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Get PM optimization suggestions with significant cost savings.
-    
+
     Convenience function for retrieving top cost-saving opportunities.
-    
-    Args:
-        min_savings: Minimum cost savings threshold (default $100)
-        limit: Maximum number of records to return
-        db_path: Optional path to database file
-        
-    Returns:
-        DataFrame with cost-saving suggestions
     """
     return retrieve_pm_optimization_suggestions(
         status='pending',
         min_savings=min_savings,
         limit=limit,
-        db_path=db_path
+        db_path=db_path,
+        location_id=location_id,
     )
 
 
