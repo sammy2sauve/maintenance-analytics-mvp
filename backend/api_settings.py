@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 from .auth import decode_token, save_user_api_key, delete_user_api_key, has_api_key
+from .adapter_maintainx import sync as mx_sync
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 bearer = HTTPBearer()
@@ -43,3 +44,11 @@ def key_status(user_id: int = Depends(_current_user_id)):
 def remove_key(user_id: int = Depends(_current_user_id)):
     delete_user_api_key(user_id)
     return {"connected": False}
+
+
+@router.post("/maintainx-sync")
+def trigger_sync(user_id: int = Depends(_current_user_id)):
+    if not has_api_key(user_id):
+        raise HTTPException(400, "No MaintainX API key stored")
+    inserted, updated = mx_sync()
+    return {"inserted": inserted, "updated": updated}

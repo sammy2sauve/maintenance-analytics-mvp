@@ -160,11 +160,12 @@ async def get_failure_predictions(
     Returns predictions sorted by failure probability (highest risk first).
     """
     try:
+        # Fetch all rows first, then deduplicate, then apply limit
         df = retrieve_failure_predictions(
             asset_id=asset_id,
             risk_level=risk_level,
             min_probability=min_probability,
-            limit=limit
+            limit=10000
         )
 
         if df.empty:
@@ -174,7 +175,13 @@ async def get_failure_predictions(
             cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
             df = df[df['prediction_date'] >= cutoff]
 
-        return _clean_records(df.to_dict('records'))
+        # Deduplicate to latest prediction per asset, then apply requested limit
+        if 'prediction_date' in df.columns and 'asset_id' in df.columns:
+            df = df.sort_values('prediction_date', ascending=False)
+            df = df.drop_duplicates(subset='asset_id', keep='first')
+            df = df.sort_values('failure_probability', ascending=False)
+
+        return _clean_records(df.head(limit).to_dict('records'))
         
     except PredictionStorageError as e:
         raise HTTPException(
