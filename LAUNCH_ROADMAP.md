@@ -23,17 +23,28 @@ The core product is built and demo-ready. Three-page analytics dashboard, predic
 
 ---
 
-## Phase 2 — MaintainX Integration (Current Priority)
+## Phase 2 — MaintainX Integration ✅ MOSTLY COMPLETE
 
 **Positioning:** *"Keep using MaintainX for work orders. Connect TrueSignal to get failure predictions, PM optimization, and KPI intelligence your MaintainX dashboard can't show you."*
 
-### Build Order
-| # | Task | Detail |
+| # | Task | Status |
 |---|------|--------|
-| 1 | **Settings page** | Where customer enters their MaintainX API key after signup |
-| 2 | **MaintainX adapter** | Pulls `/workorders` + `/assets` → maps to internal work_orders schema |
-| 3 | **Sync worker** | Daily job: fetch new WOs → run pipeline → update dashboard |
-| 4 | **Multi-tenant scoping** | Org → Location → User hierarchy. API key belongs to the Location, not the User. user_location_access table controls what each user can see. A regional director sees all locations; a site engineer sees only theirs. All data tables scoped by location_id. |
+| 1 | **Settings page** — enter MaintainX API key after signup | ✅ Done |
+| 2 | **MaintainX adapter** — pulls `/workorders` + `/assets` → normalized schema | ✅ Done |
+| 3 | **Sync on demand + auto-sync on load** — Sync button in nav, runs pipeline after fetch | ✅ Done |
+| 4 | **Multi-tenant scoping** — Org → Location → User, API key on Location, all data scoped by location_id | ✅ Done |
+| 5 | **Empty state / onboarding** — new users see "Connect your CMMS" instead of stale data | ✅ Done |
+| 6 | **PM status tracking** — mark suggestions as Implemented when a PM is completed in MaintainX | 🔲 Next |
+
+### What PM status tracking means
+When a tech completes a PM work order in MaintainX:
+1. User hits Sync (or auto-sync on next load)
+2. Adapter fetches the new completed PM WO
+3. Pipeline matches it to a pending suggestion for that asset (by asset_id + completion date after suggestion_date)
+4. Suggestion status flips to `implemented`
+5. Cost Savings page shows the updated ring counts and waterfall chart
+
+No webhook needed for MVP — polling on sync is sufficient.
 
 ### Auth approach
 - **MVP:** API key — user generates in MaintainX Settings → Integrations → pastes into TrueSignal once.
@@ -51,12 +62,12 @@ Fiix adapter      ─┘
 
 ## Phase 3 — Pre-Launch Polish (Before First Customer)
 
-| # | Task | Detail |
-|---|------|--------|
-| 1 | **Reset password** | Forgot password flow — email with reset link. Needs domain + email service (Resend) first. |
-| 2 | **Demo account + demo data** | Locked `demo@truesignal.io` account with realistic synthetic data. Used for sales calls and self-guided prospects. |
-| 3 | **Realistic cost savings data** | Current PM suggestions are identical. Need varied savings amounts, asset types, reasons, and frequency changes to look credible. |
-| 4 | **Empty state / onboarding** | New real user sees "Connect your CMMS" prompt instead of someone else's data. |
+| # | Task | Status | Detail |
+|---|------|--------|--------|
+| 1 | **Reset password** | 🔲 Todo | Forgot password flow — email with reset link. Needs domain + email service (Resend) first. |
+| 2 | **Demo account + demo data** | 🔲 Todo | Locked `demo@truesignal.io` account. Meridian Medical Center plant is the demo data — needs a locked read-only account wired to it. |
+| 3 | **Realistic cost savings data** | ✅ Done | Meridian plant has varied savings, real asset types, real failure patterns. |
+| 4 | **Empty state / onboarding** | ✅ Done | New users see "Connect your CMMS" prompt. |
 
 ---
 
