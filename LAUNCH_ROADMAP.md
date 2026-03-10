@@ -33,7 +33,7 @@ The core product is built and demo-ready. Three-page analytics dashboard, predic
 | 1 | **Settings page** | Where customer enters their MaintainX API key after signup |
 | 2 | **MaintainX adapter** | Pulls `/workorders` + `/assets` → maps to internal work_orders schema |
 | 3 | **Sync worker** | Daily job: fetch new WOs → run pipeline → update dashboard |
-| 4 | **Multi-tenant scoping** | Scope all DB queries by org_id so each customer sees only their data |
+| 4 | **Multi-tenant scoping** | Org → Location → User hierarchy. API key belongs to the Location, not the User. user_location_access table controls what each user can see. A regional director sees all locations; a site engineer sees only theirs. All data tables scoped by location_id. |
 
 ### Auth approach
 - **MVP:** API key — user generates in MaintainX Settings → Integrations → pastes into TrueSignal once.
