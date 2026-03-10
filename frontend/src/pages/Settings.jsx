@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 const API = 'http://localhost:8000';
 
 function authHeaders() {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('ts_token');
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
