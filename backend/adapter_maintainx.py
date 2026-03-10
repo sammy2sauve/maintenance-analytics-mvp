@@ -259,6 +259,35 @@ def get_api_key():
     return decrypt(row[0], row[1], row[2])
 
 
+def mark_implemented_suggestions(rows):
+    """
+    After syncing work orders, flip any pending PM suggestion to 'implemented'
+    if a completed Preventive WO exists for that asset on or after the suggestion date.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    marked = 0
+    for row in rows:
+        if row["type"] != "Preventive" or row["status"] != "Completed":
+            continue
+        completion_date = row.get("completion_date")
+        if not completion_date:
+            continue
+        cursor = conn.execute(
+            """
+            UPDATE pm_optimization_suggestions
+            SET status = 'implemented'
+            WHERE asset_id = ?
+              AND status = 'pending'
+              AND suggestion_date <= ?
+            """,
+            (row["asset_id"], completion_date),
+        )
+        marked += cursor.rowcount
+    conn.commit()
+    conn.close()
+    return marked
+
+
 def sync():
     print(f"[{datetime.now(timezone.utc).isoformat()}] Starting MaintainX sync...")
     api_key = get_api_key()
@@ -281,6 +310,10 @@ def sync():
 
     inserted, updated = upsert_work_orders(rows)
     print(f"  -> {inserted} inserted, {updated} updated in TrueSignal DB")
+
+    implemented = mark_implemented_suggestions(rows)
+    print(f"  -> {implemented} PM suggestions marked as implemented")
+
     print("Sync complete.")
     return inserted, updated
 
