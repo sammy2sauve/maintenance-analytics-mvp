@@ -23,7 +23,7 @@ from .auth import (
     save_user_api_key,
     delete_user_api_key,
 )
-from .adapter_maintainx import sync as mx_sync
+from .adapter_maintainx import sync as mx_sync, mark_implemented_suggestions
 from .pipeline import run_pipeline
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -109,10 +109,12 @@ def trigger_sync(
         raise HTTPException(400, "No MaintainX API key stored for this location")
     inserted, updated = mx_sync()
     pipeline_result = run_pipeline(verbose=False, location_id=loc_id)
+    implemented = mark_implemented_suggestions(location_id=loc_id)
     return {
         "inserted": inserted,
         "updated": updated,
         "location_id": loc_id,
         "predictions_stored": pipeline_result.get("predictions_stored", 0),
         "insights_stored": pipeline_result.get("insights_stored", 0),
+        "implemented": implemented,
     }

@@ -259,30 +259,29 @@ def get_api_key():
     return decrypt(row[0], row[1], row[2])
 
 
-def mark_implemented_suggestions(rows):
+def mark_implemented_suggestions(location_id=1):
     """
-    After syncing work orders, flip any pending PM suggestion to 'implemented'
-    if a completed Preventive WO exists for that asset on or after the suggestion date.
+    Flip pending PM suggestions to 'implemented' for any asset that has
+    a completed work order in the last 30 days.
+    Called after the pipeline so it operates on the freshest suggestions.
     """
     conn = sqlite3.connect(DB_PATH)
-    marked = 0
-    for row in rows:
-        if row["status"] != "Completed":
-            continue
-        completion_date = row.get("completion_date")
-        if not completion_date:
-            continue
-        cursor = conn.execute(
-            """
-            UPDATE pm_optimization_suggestions
-            SET status = 'implemented'
-            WHERE asset_id = ?
-              AND status = 'pending'
-              AND suggestion_date <= ?
-            """,
-            (row["asset_id"], completion_date),
-        )
-        marked += cursor.rowcount
+    cursor = conn.execute(
+        """
+        UPDATE pm_optimization_suggestions
+        SET status = 'implemented'
+        WHERE status = 'pending'
+          AND location_id = ?
+          AND asset_id IN (
+              SELECT DISTINCT asset_id FROM work_orders
+              WHERE status = 'Completed'
+                AND completion_date >= date('now', '-30 days')
+                AND location_id = ?
+          )
+        """,
+        (location_id, location_id),
+    )
+    marked = cursor.rowcount
     conn.commit()
     conn.close()
     return marked
@@ -310,10 +309,6 @@ def sync():
 
     inserted, updated = upsert_work_orders(rows)
     print(f"  -> {inserted} inserted, {updated} updated in TrueSignal DB")
-
-    implemented = mark_implemented_suggestions(rows)
-    print(f"  -> {implemented} PM suggestions marked as implemented")
-
     print("Sync complete.")
     return inserted, updated
 
