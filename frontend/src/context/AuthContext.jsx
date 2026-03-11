@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
     try {
       const id = locId || locationId;
       if (!id) return;
-      await api.post(`/settings/maintainx-sync?location_id=${id}`);
+      await api.post(`/settings/maintainx-sync?location_id=${id}`, null, { timeout: 120000 });
       setLastSynced(new Date());
       setSyncVersion(v => v + 1);
     } catch { /* silently ignore */ } finally {
@@ -42,12 +42,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('ts_token');
     if (!token) { setLoading(false); return; }
-    api.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    api.get('/auth/me')
       .then(res => {
         setUser(res.data);
         extractLocation(res.data);
       })
-      .catch(() => localStorage.removeItem('ts_token'))
+      .catch(() => {
+        localStorage.removeItem('ts_token');
+        delete api.defaults.headers.common['Authorization'];
+      })
       .finally(() => setLoading(false));
   }, []);
 
