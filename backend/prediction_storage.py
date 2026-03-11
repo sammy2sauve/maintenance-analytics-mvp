@@ -197,8 +197,8 @@ def store_pm_optimization_suggestions(
             cursor = conn.cursor()
             # Preserve existing accepted/implemented status — don't overwrite with 'pending'
             existing = cursor.execute(
-                "SELECT status FROM pm_optimization_suggestions WHERE asset_id=? AND suggestion_date=?",
-                (row['asset_id'], row['suggestion_date'])
+                "SELECT status FROM pm_optimization_suggestions WHERE asset_id=? AND location_id=?",
+                (row['asset_id'], location_id)
             ).fetchone()
             status = existing[0] if existing and existing[0] != 'pending' else row.get('status', 'pending')
             cursor.execute("""
