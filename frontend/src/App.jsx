@@ -133,6 +133,7 @@ function Dashboard() {
           <Route path="/reports"  element={<Reports />} />
           <Route path="/help"     element={<Help />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/dashboard/" replace />} />
         </Routes>
       </div>
     </div>
