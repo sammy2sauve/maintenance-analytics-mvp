@@ -26,8 +26,9 @@ export default function Nav({ basePath = '' }) {
         <div className="flex">
           <NavLink to={`${basePath}/`} end className={linkClass}>Overview</NavLink>
           <NavLink to={`${basePath}/assets`} className={linkClass}>Asset Health</NavLink>
-          <NavLink to={`${basePath}/savings`} className={linkClass}>Cost Savings</NavLink>
+          <NavLink to={`${basePath}/reports`} className={linkClass}>Reports &amp; Alerts</NavLink>
           <NavLink to={`${basePath}/settings`} className={linkClass}>Settings</NavLink>
+          <NavLink to={`${basePath}/help`} className={linkClass}>Help</NavLink>
         </div>
 
         {hasApiKey && (

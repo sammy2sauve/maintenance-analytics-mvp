@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs } from '../services/api';
-import { AlertCircle, DollarSign, Wrench, Activity } from 'lucide-react';
+import { AlertCircle, DollarSign, Wrench, Activity, FileText, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import EmptyState from '../components/EmptyState';
+import GenerateReportDrawer from '../components/GenerateReportDrawer';
+import NotifyMeDrawer from '../components/NotifyMeDrawer';
 import {
   PieChart, Pie, Cell,
   Tooltip, ResponsiveContainer,
@@ -317,8 +319,40 @@ export default function Overview({ dateRange }) {
     URL.revokeObjectURL(url);
   };
 
+  const [reportOpen, setReportOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+
   return (
     <main className="w-full px-4 py-4 h-full overflow-y-auto">
+      <GenerateReportDrawer
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        pageSections={{ overview: true, asset_health: true, critical_assets: true, insights: true }}
+      />
+      <NotifyMeDrawer
+        open={notifyOpen}
+        onClose={() => setNotifyOpen(false)}
+        page="overview"
+      />
+
+      {/* Page toolbar */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button
+          onClick={() => setNotifyOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-amber-500/50 transition-colors"
+        >
+          <Bell className="w-3.5 h-3.5" />
+          Notify Me
+        </button>
+        <button
+          onClick={() => setReportOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-indigo-500/50 transition-colors"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Generate Report
+        </button>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />

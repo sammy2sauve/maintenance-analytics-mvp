@@ -7,12 +7,13 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Overview from './pages/Overview';
 import AssetHealth from './pages/AssetHealth';
-import CostSavings from './pages/CostSavings';
+import Reports from './pages/Reports';
+import Help from './pages/Help';
 import Settings from './pages/Settings';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
-const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/savings', '/dashboard/settings'];
+const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/reports', '/dashboard/settings', '/dashboard/help'];
 
 function TrueSignalLogo() {
   return (
@@ -128,8 +129,9 @@ function Dashboard() {
       <div className="flex-1 overflow-hidden">
         <Routes>
           <Route path="/"        element={<Overview dateRange={dateRange} />} />
-          <Route path="/assets"   element={<AssetHealth dateRange={dateRange} />} />
-          <Route path="/savings"  element={<CostSavings dateRange={dateRange} />} />
+          <Route path="/assets"   element={<AssetHealth />} />
+          <Route path="/reports"  element={<Reports />} />
+          <Route path="/help"     element={<Help />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
