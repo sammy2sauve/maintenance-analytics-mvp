@@ -232,13 +232,13 @@ def upsert_work_orders(rows):
             updated += 1
         else:
             conn.execute("""
-                INSERT INTO work_orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO work_orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 row["work_order_id"], row["asset_id"], row["site"], row["type"],
                 row["status"], row["technician"], row["creation_date"], row["scheduled_start"],
                 row["start_date"], row["completion_date"], row["labor_hours_scheduled"],
                 row["labor_hours_actual"], row["downtime_hours"], row["reactive_followup"],
-                row["priority"], row["due_date"]
+                row["priority"], row["due_date"], 1
             ))
             inserted += 1
     conn.commit()
@@ -267,7 +267,7 @@ def mark_implemented_suggestions(rows):
     conn = sqlite3.connect(DB_PATH)
     marked = 0
     for row in rows:
-        if row["type"] != "Preventive" or row["status"] != "Completed":
+        if row["status"] != "Completed":
             continue
         completion_date = row.get("completion_date")
         if not completion_date:
