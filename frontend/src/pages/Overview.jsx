@@ -204,6 +204,8 @@ export default function Overview({ dateRange }) {
   const [dailyKPIs, setDailyKPIs] = useState([]);
   const [failurePredictions, setFailurePredictions] = useState([]);
   const [pmSavings, setPmSavings] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -318,9 +320,6 @@ export default function Overview({ dateRange }) {
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const [reportOpen, setReportOpen] = useState(false);
-  const [notifyOpen, setNotifyOpen] = useState(false);
 
   return (
     <main className="w-full px-4 py-4 h-full overflow-y-auto">
