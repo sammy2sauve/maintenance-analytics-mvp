@@ -195,6 +195,12 @@ def store_pm_optimization_suggestions(
         
         for _, row in df_prepared.iterrows():
             cursor = conn.cursor()
+            # Preserve existing accepted/implemented status — don't overwrite with 'pending'
+            existing = cursor.execute(
+                "SELECT status FROM pm_optimization_suggestions WHERE asset_id=? AND suggestion_date=?",
+                (row['asset_id'], row['suggestion_date'])
+            ).fetchone()
+            status = existing[0] if existing and existing[0] != 'pending' else row.get('status', 'pending')
             cursor.execute("""
                 REPLACE INTO pm_optimization_suggestions (
                     asset_id, current_pm_frequency_days,
@@ -214,7 +220,7 @@ def store_pm_optimization_suggestions(
                 row.get('confidence_score'),
                 row.get('reactive_work_after_pm_count'),
                 row['suggestion_date'],
-                row.get('status', 'pending'),
+                status,
                 row.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 location_id,
             ))
