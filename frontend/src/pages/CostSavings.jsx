@@ -129,8 +129,9 @@ export default function CostSavings() {
     return acc;
   }, {});
 
-  // Quick Wins: top 7 by savings
+  // Quick Wins: top 7 pending suggestions by savings
   const quickWins = [...pmData]
+    .filter(p => (p.status || 'pending') === 'pending')
     .sort((a, b) => (b.estimated_cost_savings || 0) - (a.estimated_cost_savings || 0))
     .slice(0, 7);
 
