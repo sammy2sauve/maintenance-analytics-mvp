@@ -138,7 +138,7 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Format</p>
             <div className="grid grid-cols-2 gap-2">
-              {['pdf','csv'].map(f => (
+              {['pdf','xlsx'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFormat(f)}
