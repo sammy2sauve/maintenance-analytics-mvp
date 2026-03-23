@@ -153,7 +153,7 @@ function FAQCategory({ category, icon: Icon, color, items }) {
 
 export default function Help() {
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="h-full overflow-y-auto"><div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
@@ -214,6 +214,6 @@ export default function Help() {
           Email Support
         </a>
       </div>
-    </div>
+    </div></div>
   );
 }

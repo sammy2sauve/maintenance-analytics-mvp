@@ -1,18 +1,19 @@
 import { Link } from 'react-router-dom';
+import { Zap, Wrench, BarChart3 } from 'lucide-react';
 
 const FEATURES = [
   {
-    icon: '⚡',
+    Icon: Zap,
     title: 'Failure Prediction',
     desc: 'Know which assets are about to fail before they do. Risk scores updated daily from your work order history.',
   },
   {
-    icon: '🔧',
+    Icon: Wrench,
     title: 'PM Optimization',
     desc: 'Stop over-maintaining assets that don\'t need it. Optimize PM frequencies and quantify the savings.',
   },
   {
-    icon: '📊',
+    Icon: BarChart3,
     title: 'KPI Intelligence',
     desc: 'Your CMMS data has distortions — rushed completions, duplicate work orders. We surface the real numbers.',
   },
@@ -113,12 +114,14 @@ export default function Landing() {
       {/* Features */}
       <section className="px-8 pb-20 max-w-4xl mx-auto w-full">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {FEATURES.map(f => (
-            <div key={f.title}
+          {FEATURES.map(({ Icon, title, desc }) => (
+            <div key={title}
               className="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 hover:border-indigo-500/30 transition-colors">
-              <div className="text-2xl mb-3">{f.icon}</div>
-              <h3 className="font-semibold text-white mb-2">{f.title}</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 w-fit mb-4">
+                <Icon className="w-5 h-5 text-indigo-400" />
+              </div>
+              <h3 className="font-semibold text-white mb-2">{title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">{desc}</p>
             </div>
           ))}
         </div>

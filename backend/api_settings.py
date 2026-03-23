@@ -22,6 +22,7 @@ from .auth import (
     has_api_key,
     save_user_api_key,
     delete_user_api_key,
+    get_user_role_in_org,
 )
 from .adapter_maintainx import sync as mx_sync, mark_implemented_suggestions
 from .pipeline import run_pipeline
@@ -47,6 +48,17 @@ def _resolve_location(user_id: int, location_id: int = None) -> int:
     if not user_can_access_location(user_id, location_id):
         raise HTTPException(403, "You do not have access to this location")
     return location_id
+
+
+def _require_not_viewer(user_id: int, loc_id: int):
+    """Raise 403 if the user is a viewer."""
+    locs = get_user_locations(user_id)
+    for loc in locs:
+        if loc["id"] == loc_id:
+            role = get_user_role_in_org(user_id, loc["org_id"])
+            if role == "viewer":
+                raise HTTPException(403, "Viewers cannot modify settings")
+            return
 
 
 class ApiKeyRequest(BaseModel):
@@ -76,6 +88,7 @@ def save_key(body: ApiKeyRequest, user_id: int = Depends(_current_user_id)):
     if not body.api_key.strip():
         raise HTTPException(400, "API key cannot be empty")
     loc_id = _resolve_location(user_id, body.location_id)
+    _require_not_viewer(user_id, loc_id)
     save_location_api_key(loc_id, body.api_key.strip())
     return {"connected": True, "location_id": loc_id}
 
@@ -95,6 +108,7 @@ def remove_key(
     user_id: int = Depends(_current_user_id),
 ):
     loc_id = _resolve_location(user_id, location_id)
+    _require_not_viewer(user_id, loc_id)
     delete_location_api_key(loc_id)
     return {"connected": False, "location_id": loc_id}
 
@@ -105,9 +119,10 @@ def trigger_sync(
     user_id: int = Depends(_current_user_id),
 ):
     loc_id = _resolve_location(user_id, location_id)
+    _require_not_viewer(user_id, loc_id)
     if not location_has_api_key(loc_id):
         raise HTTPException(400, "No MaintainX API key stored for this location")
-    inserted, updated = mx_sync()
+    inserted, updated = mx_sync(location_id=loc_id)
     pipeline_result = run_pipeline(verbose=False, location_id=loc_id)
     implemented = mark_implemented_suggestions(location_id=loc_id)
     return {

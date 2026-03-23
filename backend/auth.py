@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from pathlib import Path
 import sqlite3
+import secrets
 
 import bcrypt
 from jose import JWTError, jwt
@@ -68,10 +69,28 @@ def init_users_table():
             PRIMARY KEY (user_id, location_id)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            code        TEXT NOT NULL UNIQUE,
+            org_id      INTEGER NOT NULL REFERENCES orgs(id),
+            location_id INTEGER NOT NULL REFERENCES locations(id),
+            role        TEXT NOT NULL DEFAULT 'viewer',
+            created_by  INTEGER NOT NULL REFERENCES users(id),
+            used_by     INTEGER REFERENCES users(id),
+            expires_at  TEXT,
+            created_at  TEXT DEFAULT (datetime('now'))
+        )
+    """)
     # Ensure columns exist for DBs that were created before multi-tenant
     for col, typedef in [("org_id", "INTEGER"), ("role", "TEXT DEFAULT 'member'")]:
         try:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {typedef}")
+        except Exception:
+            pass
+    for col, typedef in [("tier", "TEXT NOT NULL DEFAULT 'starter'"), ("seat_limit", "INTEGER DEFAULT 3")]:
+        try:
+            conn.execute(f"ALTER TABLE orgs ADD COLUMN {col} {typedef}")
         except Exception:
             pass
     conn.commit()
@@ -243,14 +262,14 @@ def create_user(name: str, email: str, password: str, org_name: str = None) -> d
 
         # Create user
         cur = conn.execute(
-            "INSERT INTO users (name, email, hashed_password, org_id, role) VALUES (?, ?, ?, ?, 'admin')",
+            "INSERT INTO users (name, email, hashed_password, org_id, role) VALUES (?, ?, ?, ?, 'owner')",
             (name, email, hashed, org_id)
         )
         user_id = cur.lastrowid
 
-        # Grant admin access to the location
+        # Grant owner access to the location
         conn.execute(
-            "INSERT INTO user_location_access (user_id, location_id, role) VALUES (?, ?, 'admin')",
+            "INSERT INTO user_location_access (user_id, location_id, role) VALUES (?, ?, 'owner')",
             (user_id, location_id)
         )
 
@@ -265,3 +284,181 @@ def create_user(name: str, email: str, password: str, org_name: str = None) -> d
         "org_id": org_id,
         "location_id": location_id,
     }
+
+
+# -- Invite codes & team management ------------------------------------------
+
+def create_user_shell(name: str, email: str, password: str) -> dict:
+    """Create a bare user row with no org/location."""
+    hashed = hash_password(password)
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO users (name, email, hashed_password, role) VALUES (?, ?, ?, 'member')",
+            (name, email, hashed)
+        )
+        user_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": user_id, "name": name, "email": email}
+
+
+def create_invite_code(org_id: int, location_id: int, created_by: int,
+                       role: str = 'viewer', expires_days: int = 7) -> str:
+    """Generate an invite code after checking seat limit."""
+    conn = _get_conn()
+    row = conn.execute("SELECT seat_limit FROM orgs WHERE id = ?", (org_id,)).fetchone()
+    seat_limit = row[0] if row and row[0] is not None else None
+    if seat_limit is not None:
+        used = conn.execute("""
+            SELECT COUNT(*) FROM user_location_access ula
+            JOIN locations l ON l.id = ula.location_id
+            WHERE l.org_id = ?
+        """, (org_id,)).fetchone()[0]
+        pending = conn.execute("""
+            SELECT COUNT(*) FROM invite_codes
+            WHERE org_id = ? AND used_by IS NULL
+              AND (expires_at IS NULL OR expires_at > datetime('now'))
+        """, (org_id,)).fetchone()[0]
+        if used + pending >= seat_limit:
+            conn.close()
+            raise ValueError(f"Seat limit of {seat_limit} reached")
+    expires_at = (datetime.utcnow() + timedelta(days=expires_days)).isoformat() if expires_days else None
+    code = secrets.token_urlsafe(24)
+    conn.execute(
+        "INSERT INTO invite_codes (code, org_id, location_id, role, created_by, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (code, org_id, location_id, role, created_by, expires_at)
+    )
+    conn.commit()
+    conn.close()
+    return code
+
+
+def validate_invite_code(code: str) -> Optional[dict]:
+    """Return invite details or None if invalid/used/expired."""
+    conn = _get_conn()
+    row = conn.execute("""
+        SELECT ic.id, ic.code, ic.org_id, ic.location_id, ic.role, ic.used_by, ic.expires_at,
+               o.name as org_name, o.tier, o.seat_limit
+        FROM invite_codes ic
+        JOIN orgs o ON o.id = ic.org_id
+        WHERE ic.code = ?
+          AND ic.used_by IS NULL
+          AND (ic.expires_at IS NULL OR ic.expires_at > datetime('now'))
+    """, (code,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def accept_invite_code(code: str, user_id: int) -> None:
+    """Mark code used, set user org_id, insert location access."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT org_id, location_id, role FROM invite_codes WHERE code = ? AND used_by IS NULL",
+        (code,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise ValueError("Invite code not found or already used")
+    org_id, location_id, role = row[0], row[1], row[2]
+    conn.execute("UPDATE invite_codes SET used_by = ? WHERE code = ?", (user_id, code))
+    conn.execute("UPDATE users SET org_id = ? WHERE id = ?", (org_id, user_id))
+    conn.execute(
+        "INSERT OR IGNORE INTO user_location_access (user_id, location_id, role) VALUES (?, ?, ?)",
+        (user_id, location_id, role)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_role_in_org(user_id: int, org_id: int) -> Optional[str]:
+    """Return the user's role in the org, or None."""
+    conn = _get_conn()
+    row = conn.execute("""
+        SELECT ula.role FROM user_location_access ula
+        JOIN locations l ON l.id = ula.location_id
+        WHERE ula.user_id = ? AND l.org_id = ?
+        LIMIT 1
+    """, (user_id, org_id)).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def get_org_members(org_id: int) -> List[dict]:
+    """All members with their roles."""
+    conn = _get_conn()
+    rows = conn.execute("""
+        SELECT u.id, u.name, u.email, ula.role
+        FROM users u
+        JOIN user_location_access ula ON ula.user_id = u.id
+        JOIN locations l ON l.id = ula.location_id
+        WHERE l.org_id = ?
+        ORDER BY CASE ula.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.name
+    """, (org_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_org_seat_usage(org_id: int) -> dict:
+    """Return {used, limit, tier}."""
+    conn = _get_conn()
+    used = conn.execute("""
+        SELECT COUNT(*) FROM user_location_access ula
+        JOIN locations l ON l.id = ula.location_id
+        WHERE l.org_id = ?
+    """, (org_id,)).fetchone()[0]
+    row = conn.execute("SELECT tier, seat_limit FROM orgs WHERE id = ?", (org_id,)).fetchone()
+    conn.close()
+    return {
+        "used": used,
+        "tier": row[0] if row else "starter",
+        "limit": row[1] if row else 3,
+    }
+
+
+def get_invite_codes(org_id: int) -> List[dict]:
+    """Active (unused, non-expired) invite codes."""
+    conn = _get_conn()
+    rows = conn.execute("""
+        SELECT ic.code, ic.role, ic.expires_at, ic.created_at,
+               u.name as created_by_name
+        FROM invite_codes ic
+        JOIN users u ON u.id = ic.created_by
+        WHERE ic.org_id = ? AND ic.used_by IS NULL
+          AND (ic.expires_at IS NULL OR ic.expires_at > datetime('now'))
+        ORDER BY ic.created_at DESC
+    """, (org_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def revoke_invite_code(code: str, org_id: int) -> bool:
+    """Delete unused code. Returns True if deleted."""
+    conn = _get_conn()
+    cur = conn.execute(
+        "DELETE FROM invite_codes WHERE code = ? AND org_id = ? AND used_by IS NULL",
+        (code, org_id)
+    )
+    conn.commit()
+    deleted = cur.rowcount > 0
+    conn.close()
+    return deleted
+
+
+def remove_org_member(user_id_to_remove: int, org_id: int, requesting_user_id: int) -> None:
+    """Remove a member. Owner only. Cannot remove self."""
+    if user_id_to_remove == requesting_user_id:
+        raise ValueError("Cannot remove yourself")
+    conn = _get_conn()
+    loc_row = conn.execute("SELECT id FROM locations WHERE org_id = ? LIMIT 1", (org_id,)).fetchone()
+    if not loc_row:
+        conn.close()
+        raise ValueError("Org not found")
+    location_id = loc_row[0]
+    conn.execute(
+        "DELETE FROM user_location_access WHERE user_id = ? AND location_id = ?",
+        (user_id_to_remove, location_id)
+    )
+    conn.commit()
+    conn.close()

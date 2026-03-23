@@ -11,7 +11,7 @@ function formatLastSynced(date) {
 }
 
 export default function Nav({ basePath = '' }) {
-  const { hasApiKey, syncing, lastSynced, triggerSync } = useAuth();
+  const { hasApiKey, syncing, lastSynced, triggerSync, isOwnerOrAdmin } = useAuth();
 
   const linkClass = ({ isActive }) =>
     `px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -27,7 +27,9 @@ export default function Nav({ basePath = '' }) {
           <NavLink to={`${basePath}/`} end className={linkClass}>Overview</NavLink>
           <NavLink to={`${basePath}/assets`} className={linkClass}>Asset Health</NavLink>
           <NavLink to={`${basePath}/reports`} className={linkClass}>Reports &amp; Alerts</NavLink>
-          <NavLink to={`${basePath}/settings`} className={linkClass}>Settings</NavLink>
+          {isOwnerOrAdmin && (
+            <NavLink to={`${basePath}/settings`} className={linkClass}>Settings</NavLink>
+          )}
           <NavLink to={`${basePath}/help`} className={linkClass}>Help</NavLink>
         </div>
 
@@ -40,10 +42,9 @@ export default function Nav({ basePath = '' }) {
             )}
             <button
               onClick={() => triggerSync()}
-              disabled={syncing}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 syncing
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  ? 'bg-slate-800 text-slate-400 cursor-default'
                   : 'bg-slate-800 text-slate-300 hover:bg-indigo-700 hover:text-white'
               }`}
             >

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs } from '../services/api';
-import { AlertCircle, DollarSign, Wrench, Activity, FileText, Bell } from 'lucide-react';
+import { AlertCircle, Wrench, Activity, FileText, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import EmptyState from '../components/EmptyState';
 import GenerateReportDrawer from '../components/GenerateReportDrawer';
@@ -55,7 +55,6 @@ function formatValue(value) {
 function MaintenanceHealthGauge({ summary, kpis }) {
   const criticalCount = summary?.critical_risk_assets || 0;
   const highCount = summary?.high_risk_assets || 0;
-  const costSavings = summary?.total_cost_savings_potential || 0;
 
   const pmKpi = kpis?.find(k =>
     k.kpi_name?.toLowerCase().includes('pm') ||
@@ -66,7 +65,6 @@ function MaintenanceHealthGauge({ summary, kpis }) {
   let score = 50;
   score -= criticalCount * 3;
   score -= highCount * 1;
-  score += Math.min(costSavings / 10000, 15);
   if (pmRate > 0.7) score += 5;
   score = Math.max(0, Math.min(100, Math.round(score)));
 
@@ -122,7 +120,6 @@ function MaintenanceHealthGauge({ summary, kpis }) {
         <div className="flex gap-3 mt-2 text-xs text-slate-400">
           <span>Crit: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
           <span>High: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
-          <span>Savings: <span className="text-emerald-400 font-semibold">+{Math.round(Math.min(costSavings / 10000, 15))}</span></span>
         </div>
       </div>
     </div>
@@ -203,7 +200,6 @@ export default function Overview({ dateRange }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [dailyKPIs, setDailyKPIs] = useState([]);
   const [failurePredictions, setFailurePredictions] = useState([]);
-  const [pmSavings, setPmSavings] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
 
@@ -214,16 +210,13 @@ export default function Overview({ dateRange }) {
 
       const timeParams = dateRange ? { days: dateRange } : {};
       const locParam = locationId ? { location_id: locationId } : {};
-      const [dashboardRes, kpisRes, predictionsRes, pmRes] = await Promise.all([
+      const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
         getPredictions.dashboard(),
         getKPIs.daily({ limit: 100, ...timeParams, ...locParam }),
         getPredictions.failures({ limit: 1000, ...timeParams, ...locParam }),
-        getPredictions.pmOptimization({ limit: 1000, status: 'pending', ...timeParams, ...locParam }),
       ]);
 
       setDashboardData(dashboardRes.data);
-      const pmData = pmRes.data || [];
-      setPmSavings(pmData.reduce((sum, p) => sum + (p.estimated_cost_savings || 0), 0));
 
       const kpiMap = new Map();
       (kpisRes.data || []).forEach(k => {
@@ -281,7 +274,6 @@ export default function Overview({ dateRange }) {
     total_assets_monitored: failurePredictions.length,
     high_risk_assets: failurePredictions.filter(p => p.risk_level === 'HIGH' || p.risk_level === 'CRITICAL').length,
     critical_risk_assets: failurePredictions.filter(p => p.risk_level === 'CRITICAL').length,
-    total_cost_savings_potential: pmSavings,
   };
 
   const filteredInsights = dateRange
@@ -353,11 +345,10 @@ export default function Overview({ dateRange }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />
         <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-5 h-5" />} color="red" />
         <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-5 h-5" />} color="orange" />
-        <StatCard title="Cost Savings" value={`$${filteredSummary.total_cost_savings_potential.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} color="green" />
       </div>
 
       {/* Charts Row: Risk Distribution + Health Gauge + KPI Table */}

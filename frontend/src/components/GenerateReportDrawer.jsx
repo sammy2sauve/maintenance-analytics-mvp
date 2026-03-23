@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, FileText, Download, Mail, ChevronDown } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw } from 'lucide-react';
+import { generateReport } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const DEFAULT_SECTIONS = {
   overview: { label: 'Overview Summary', checked: true },
@@ -10,10 +12,13 @@ const DEFAULT_SECTIONS = {
 };
 
 export default function GenerateReportDrawer({ open, onClose, pageSections }) {
+  const { syncing, lastSynced } = useAuth();
   const [sections, setSections] = useState(DEFAULT_SECTIONS);
   const [dateRange, setDateRange] = useState('30d');
   const [format, setFormat] = useState('pdf');
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Apply page-specific section presets when opened
   useEffect(() => {
@@ -30,6 +35,38 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
 
   const toggle = (key) =>
     setSections(prev => ({ ...prev, [key]: { ...prev[key], checked: !prev[key].checked } }));
+
+  const daysMap = { '7d': 7, '30d': 30, '90d': 90, 'all': null };
+
+  const handleDownload = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const selectedSections = Object.entries(sections)
+        .filter(([, { checked }]) => checked)
+        .map(([key]) => key);
+      if (!selectedSections.length) {
+        setError('Select at least one section.');
+        return;
+      }
+      const { blob, filename } = await generateReport({
+        sections: selectedSections,
+        days: daysMap[dateRange],
+        format,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Failed to generate report.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -100,8 +137,8 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
           {/* Format */}
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Format</p>
-            <div className="grid grid-cols-3 gap-2">
-              {['pdf','csv','excel'].map(f => (
+            <div className="grid grid-cols-2 gap-2">
+              {['pdf','csv'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFormat(f)}
@@ -132,25 +169,31 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-700 space-y-2">
-          <button
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
-            onClick={() => {}}
-          >
-            <Download className="w-4 h-4" />
-            Download {format.toUpperCase()}
-          </button>
-          {email && (
-            <button
-              className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium py-2.5 rounded-lg transition-colors"
-              onClick={() => {}}
-            >
-              <Mail className="w-4 h-4" />
-              Send to {email}
-            </button>
+          {syncing && (
+            <p className="text-xs text-slate-400 flex items-center gap-1.5">
+              <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
+              Sync in progress — report uses last synced data
+            </p>
           )}
-          <p className="text-[11px] text-slate-500 text-center pt-1">
-            Report export coming soon — backend integration in progress
-          </p>
+          {!syncing && lastSynced && (
+            <p className="text-xs text-slate-500">
+              Data as of {lastSynced.toLocaleTimeString()}
+            </p>
+          )}
+          {error && (
+            <p className="text-xs text-red-400 text-center pb-1">{error}</p>
+          )}
+          <button
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+            onClick={handleDownload}
+            disabled={loading}
+          >
+            {loading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />
+            }
+            {loading ? 'Generating…' : `Download ${format.toUpperCase()}`}
+          </button>
         </div>
       </div>
     </>

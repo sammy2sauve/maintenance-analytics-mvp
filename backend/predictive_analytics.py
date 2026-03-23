@@ -137,7 +137,8 @@ def calculate_failure_probability(
     mtbf: Optional[float],
     days_since_pm: Optional[int],
     reactive_count_90d: int,
-    asset_has_pm_history: bool
+    asset_has_pm_history: bool,
+    days_since_last_work: Optional[int] = None,
 ) -> Tuple[float, float]:
     """
     Calculate failure probability score for an asset.
@@ -189,11 +190,33 @@ def calculate_failure_probability(
         probability += 0.2
         confidence -= 0.1
     
+    # Factor 4: Recent maintenance credit — any completed WO in last 30 days reduces risk
+    if days_since_last_work is not None:
+        if days_since_last_work <= 30:
+            probability -= 0.25
+        elif days_since_last_work <= 60:
+            probability -= 0.12
+
     # Normalize
-    probability = min(probability, 1.0)
+    probability = max(min(probability, 1.0), 0.0)
     confidence = max(min(confidence, 1.0), 0.1)
-    
+
     return probability, confidence
+
+
+def calculate_days_since_last_work(df: pd.DataFrame, asset_id: str) -> Optional[int]:
+    """Days since any completed work order (PM or corrective) for an asset."""
+    asset_work = df[
+        (df['asset_id'] == asset_id) &
+        (df['status'].str.lower().str.contains('complet', na=False))
+    ].copy()
+    if len(asset_work) == 0:
+        return None
+    asset_work['completion_dt'] = pd.to_datetime(asset_work['completion_date'], errors='coerce')
+    last_date = asset_work['completion_dt'].max()
+    if pd.isna(last_date):
+        return None
+    return int((pd.Timestamp.now() - last_date).days)
 
 
 def classify_risk_level(probability: float) -> str:
@@ -299,20 +322,22 @@ def predict_asset_failures(
             mtbf = calculate_mtbf(df, asset_id)
             days_since_pm = calculate_days_since_last_pm(df, asset_id)
             reactive_count = count_recent_reactive_work(df, asset_id, lookback_days)
-            
+            days_since_work = calculate_days_since_last_work(df, asset_id)
+
             # Check if asset has PM history
             asset_pm_count = len(df[
                 (df['asset_id'] == asset_id) &
                 (df['type'].str.lower().str.contains('pm|preventive|preventative', na=False))
             ])
             has_pm_history = asset_pm_count > 0
-            
+
             # Calculate failure probability
             probability, confidence = calculate_failure_probability(
                 mtbf=mtbf,
                 days_since_pm=days_since_pm,
                 reactive_count_90d=reactive_count,
-                asset_has_pm_history=has_pm_history
+                asset_has_pm_history=has_pm_history,
+                days_since_last_work=days_since_work,
             )
             
             # Estimate days to failure

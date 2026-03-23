@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 function TrueSignalMark() {
   return (
@@ -27,19 +28,45 @@ export default function Signup() {
   const { signup } = useAuth();
   const navigate   = useNavigate();
 
-  const [name, setName]         = useState('');
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [mode, setMode]               = useState('create'); // 'create' | 'join'
+  const [name, setName]               = useState('');
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
+  const [orgName, setOrgName]         = useState('');
+  const [inviteCode, setInviteCode]   = useState('');
+  const [codePreview, setCodePreview] = useState(null); // null | {org_name, role} | 'error'
+  const [codeChecking, setCodeChecking] = useState(false);
+  const [error, setError]             = useState('');
+  const [loading, setLoading]         = useState(false);
+
+  const checkInviteCode = async (code) => {
+    if (!code.trim()) { setCodePreview(null); return; }
+    setCodeChecking(true);
+    try {
+      const res = await api.get(`/invites/validate/${code.trim()}`);
+      setCodePreview(res.data);
+    } catch {
+      setCodePreview('error');
+    } finally {
+      setCodeChecking(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (mode === 'join' && (!inviteCode.trim() || codePreview === 'error' || !codePreview)) {
+      setError('Please enter a valid invite code');
+      return;
+    }
     setLoading(true);
     try {
-      await signup(name, email, password);
+      if (mode === 'create') {
+        await signup(name, email, password, { orgName: orgName.trim() || undefined });
+      } else {
+        await signup(name, email, password, { inviteCode: inviteCode.trim() });
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.detail || 'Sign up failed. Please try again.');
@@ -54,7 +81,29 @@ export default function Signup() {
         <TrueSignalMark />
 
         <div className="bg-slate-900 border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-6 text-center">Create your account</h2>
+          <h2 className="text-lg font-semibold text-white mb-5 text-center">Get started with TrueSignal</h2>
+
+          {/* Mode toggle */}
+          <div className="flex rounded-lg bg-slate-800 p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => { setMode('create'); setError(''); }}
+              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'create' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Create organization
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('join'); setError(''); }}
+              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'join' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Join with invite code
+            </button>
+          </div>
 
           <form onSubmit={submit} className="space-y-4">
             <div>
@@ -66,6 +115,51 @@ export default function Signup() {
                 placeholder="Jane Smith"
               />
             </div>
+
+            {mode === 'create' && (
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Organization Name</label>
+                <input
+                  type="text"
+                  value={orgName} onChange={e => setOrgName(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  placeholder="Acme Facilities"
+                />
+              </div>
+            )}
+
+            {mode === 'join' && (
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Invite Code</label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={e => { setInviteCode(e.target.value); setCodePreview(null); }}
+                  onBlur={e => checkInviteCode(e.target.value)}
+                  className={`w-full bg-slate-800 border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                    codePreview === 'error'
+                      ? 'border-red-500 focus:border-red-500'
+                      : codePreview
+                      ? 'border-emerald-500 focus:border-emerald-500'
+                      : 'border-slate-700 focus:border-indigo-500'
+                  }`}
+                  placeholder="Paste your invite code"
+                />
+                {codeChecking && (
+                  <p className="text-xs text-slate-400 mt-1">Checking code…</p>
+                )}
+                {codePreview && codePreview !== 'error' && (
+                  <p className="text-xs text-emerald-400 mt-1">
+                    Joining <span className="font-semibold">{codePreview.org_name}</span> as{' '}
+                    <span className="capitalize">{codePreview.role}</span>
+                  </p>
+                )}
+                {codePreview === 'error' && (
+                  <p className="text-xs text-red-400 mt-1">Invalid, expired, or already used code</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Work Email</label>
               <input
@@ -93,7 +187,10 @@ export default function Signup() {
               type="submit" disabled={loading}
               className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
             >
-              {loading ? 'Creating account…' : 'Create Account'}
+              {loading
+                ? (mode === 'create' ? 'Creating account…' : 'Joining…')
+                : (mode === 'create' ? 'Create Account' : 'Join Organization')
+              }
             </button>
           </form>
 

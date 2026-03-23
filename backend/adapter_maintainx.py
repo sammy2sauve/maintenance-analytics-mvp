@@ -248,13 +248,19 @@ def upsert_work_orders(rows):
 
 # ── Main sync ──────────────────────────────────────────────────────────────────
 
-def get_api_key():
+def get_api_key(location_id=None):
     conn = sqlite3.connect(DB_PATH)
-    row = conn.execute(
-        "SELECT api_key_enc, api_key_salt, api_key_nonce FROM users WHERE api_key_enc IS NOT NULL LIMIT 1"
-    ).fetchone()
+    if location_id is not None:
+        row = conn.execute(
+            "SELECT mx_api_key_enc, mx_api_key_salt, mx_api_key_nonce FROM locations WHERE id = ?",
+            (location_id,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT mx_api_key_enc, mx_api_key_salt, mx_api_key_nonce FROM locations WHERE mx_api_key_enc IS NOT NULL LIMIT 1"
+        ).fetchone()
     conn.close()
-    if not row:
+    if not row or not row[0]:
         raise SystemExit("No MaintainX API key stored. Connect in Settings first.")
     return decrypt(row[0], row[1], row[2])
 
@@ -287,9 +293,9 @@ def mark_implemented_suggestions(location_id=1):
     return marked
 
 
-def sync():
+def sync(location_id=None):
     print(f"[{datetime.now(timezone.utc).isoformat()}] Starting MaintainX sync...")
-    api_key = get_api_key()
+    api_key = get_api_key(location_id)
 
     print("  Fetching assets...")
     mx_assets = fetch_all("assets", "assets", api_key)

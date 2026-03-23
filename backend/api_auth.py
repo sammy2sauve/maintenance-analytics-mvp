@@ -10,6 +10,9 @@ from .auth import (
     init_users_table,
     get_user_by_email,
     create_user,
+    create_user_shell,
+    validate_invite_code,
+    accept_invite_code,
     verify_password,
     create_token,
     decode_token,
@@ -24,10 +27,11 @@ init_users_table()
 # -- Schemas ------------------------------------------------------------------
 
 class SignupRequest(BaseModel):
-    name:     str
-    email:    EmailStr
-    password: str
-    org_name: str = None
+    name:        str
+    email:       EmailStr
+    password:    str
+    org_name:    str = None
+    invite_code: str = None
 
 class LoginRequest(BaseModel):
     email:    EmailStr
@@ -45,7 +49,18 @@ def signup(body: SignupRequest):
         raise HTTPException(400, "Password must be at least 8 characters")
     if get_user_by_email(body.email):
         raise HTTPException(409, "An account with that email already exists")
-    user = create_user(body.name, body.email, body.password, org_name=body.org_name)
+
+    if body.invite_code:
+        code_info = validate_invite_code(body.invite_code)
+        if not code_info:
+            raise HTTPException(400, "Invite code is invalid, expired, or already used")
+        user = create_user_shell(body.name, body.email, body.password)
+        accept_invite_code(body.invite_code, user["id"])
+        db_user = get_user_by_email(body.email)
+        user["org_id"] = db_user.get("org_id")
+    else:
+        user = create_user(body.name, body.email, body.password, org_name=body.org_name)
+
     token = create_token(user["id"], user["email"])
     locations = get_user_locations(user["id"])
     return {
@@ -54,7 +69,7 @@ def signup(body: SignupRequest):
             "id": user["id"],
             "name": user["name"],
             "email": user["email"],
-            "org_id": user["org_id"],
+            "org_id": user.get("org_id"),
             "locations": locations,
         },
     }

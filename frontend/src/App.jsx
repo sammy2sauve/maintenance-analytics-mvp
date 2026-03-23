@@ -120,6 +120,19 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+// Redirects viewers (and unauthenticated users) away from settings
+function OwnerAdminRoute({ children }) {
+  const { user, loading, isOwnerOrAdmin } = useAuth();
+  if (loading) return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-slate-400 animate-pulse">Loading…</div>
+    </div>
+  );
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isOwnerOrAdmin) return <Navigate to="/dashboard/" replace />;
+  return children;
+}
+
 function Dashboard() {
   const [dateRange, setDateRange] = useState(30);
   return (
@@ -132,7 +145,7 @@ function Dashboard() {
           <Route path="/assets"   element={<AssetHealth />} />
           <Route path="/reports"  element={<Reports />} />
           <Route path="/help"     element={<Help />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
           <Route path="*" element={<Navigate to="/dashboard/" replace />} />
         </Routes>
       </div>

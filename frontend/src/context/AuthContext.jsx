@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]         = useState(true);
   const [locationId, setLocationId]   = useState(null);
   const [hasApiKey, setHasApiKey]     = useState(false);
+  const [role, setRole]               = useState(null);
   const [syncing, setSyncing]         = useState(false);
   const [lastSynced, setLastSynced]   = useState(null);
   const [syncVersion, setSyncVersion] = useState(0);
@@ -18,9 +19,11 @@ export function AuthProvider({ children }) {
     if (loc) {
       setLocationId(loc.id);
       setHasApiKey(!!loc.has_api_key);
+      setRole(loc.access_role || null);
     } else {
       setLocationId(null);
       setHasApiKey(false);
+      setRole(null);
     }
   };
 
@@ -55,13 +58,7 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-sync once on load when we know the location has an API key
-  useEffect(() => {
-    if (hasApiKey && locationId && !didInitialSync.current) {
-      didInitialSync.current = true;
-      triggerSync(locationId);
-    }
-  }, [hasApiKey, locationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-sync removed — sync is manual only via the Sync button in nav
 
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
@@ -72,8 +69,11 @@ export function AuthProvider({ children }) {
     return res.data.user;
   };
 
-  const signup = async (name, email, password) => {
-    const res = await api.post('/auth/signup', { name, email, password });
+  const signup = async (name, email, password, { orgName, inviteCode } = {}) => {
+    const body = { name, email, password };
+    if (inviteCode) body.invite_code = inviteCode;
+    else if (orgName) body.org_name = orgName;
+    const res = await api.post('/auth/signup', body);
     localStorage.setItem('ts_token', res.data.token);
     api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
     setUser(res.data.user);
@@ -87,6 +87,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setLocationId(null);
     setHasApiKey(false);
+    setRole(null);
     didInitialSync.current = false;
   };
 
@@ -98,10 +99,13 @@ export function AuthProvider({ children }) {
     } catch { /* ignore */ }
   };
 
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin';
+
   return (
     <AuthContext.Provider value={{
       user, loading, login, signup, logout,
       locationId, hasApiKey, refreshLocation,
+      role, isOwnerOrAdmin,
       syncing, lastSynced, syncVersion, triggerSync,
     }}>
       {children}
