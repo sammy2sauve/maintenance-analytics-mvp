@@ -81,6 +81,7 @@ class ReportRequest(BaseModel):
     sections: List[str]
     days: Optional[int] = None
     format: str = "pdf"
+    report_type: str = "summary"   # "summary" | "full"
 
 
 SECTION_LABELS = {
@@ -1124,6 +1125,409 @@ def _generate_xlsx(sections: List[str], days: Optional[int], location_id: int) -
     return buf
 
 
+# ── One-page summary PDF ───────────────────────────────────────────────────────
+
+def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id: int) -> io.BytesIO:
+    """Single-page maintenance health summary — executive overview."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    C = {k: colors.HexColor(v) for k, v in {
+        "indigo": INDIGO, "indigo_dark": INDIGO_DARK, "indigo_light": INDIGO_LIGHT,
+        "emerald": EMERALD, "slate_50": SLATE_50, "slate_100": SLATE_100,
+        "slate_200": SLATE_200, "slate_700": SLATE_700, "slate_900": SLATE_900,
+        "white": WHITE,
+    }.items()}
+
+    PAGE_W, PAGE_H = letter
+    HEADER_H = 0.85 * inch
+    MARGIN_L = MARGIN_R = 0.75 * inch
+    MARGIN_T = HEADER_H + 0.35 * inch
+    MARGIN_B = 0.65 * inch
+    CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
+
+    styles = getSampleStyleSheet()
+    def ps(name, **kw):
+        return ParagraphStyle(name, parent=styles["Normal"], **kw)
+
+    period_label = f"Last {days} days" if days else "All time"
+
+    def _draw_page(canvas, doc):
+        canvas.saveState()
+        canvas.setFillColor(C["slate_900"])
+        canvas.rect(0, PAGE_H - HEADER_H, PAGE_W, HEADER_H, fill=1, stroke=0)
+        canvas.setFillColor(C["indigo"])
+        canvas.rect(0, PAGE_H - HEADER_H - 1.5, PAGE_W, 1.5, fill=1, stroke=0)
+        lx = MARGIN_L
+        base_y = PAGE_H - HEADER_H / 2 - (14 * 1.15)
+        sx = sy = 1.15
+        ekg_pts = [(0,14),(8,14),(11,14),(14,3),(17,25),(20,14),(22,14),(44,14)]
+        canvas.setStrokeColor(C["indigo"])
+        canvas.setLineWidth(1.6)
+        path = canvas.beginPath()
+        for i, (x, y) in enumerate(ekg_pts):
+            px = lx + x * sx
+            py = base_y + (14 - y) * sy
+            if i == 0: path.moveTo(px, py)
+            else:       path.lineTo(px, py)
+        canvas.drawPath(path, stroke=1, fill=0)
+        canvas.setFillColor(C["emerald"])
+        canvas.circle(lx + 14*sx, base_y + (14-3)*sy, 2.8, fill=1, stroke=0)
+        wx = lx + 44*sx + 10
+        wy = PAGE_H - HEADER_H/2 + 3
+        canvas.setFont("Helvetica-Bold", 15)
+        canvas.setFillColor(C["white"])
+        true_w = canvas.stringWidth("True", "Helvetica-Bold", 15)
+        canvas.drawString(wx, wy, "True")
+        canvas.setFillColor(C["emerald"])
+        canvas.drawString(wx + true_w, wy, "Signal")
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor(INDIGO_LIGHT))
+        canvas.drawString(wx, wy - 12, "MAINTENANCE INTELLIGENCE")
+        rx = PAGE_W - MARGIN_R
+        canvas.setFont("Helvetica-Bold", 8)
+        canvas.setFillColor(C["white"])
+        canvas.drawRightString(rx, PAGE_H - HEADER_H/2 + 3, "Maintenance Health Summary")
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor(INDIGO_LIGHT))
+        canvas.drawRightString(rx, PAGE_H - HEADER_H/2 - 9, period_label)
+        fy = MARGIN_B * 0.55
+        canvas.setStrokeColor(C["slate_200"])
+        canvas.setLineWidth(0.5)
+        canvas.line(MARGIN_L, fy + 10, PAGE_W - MARGIN_R, fy + 10)
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor(SLATE_700))
+        canvas.drawString(MARGIN_L, fy, "TrueSignal · Maintenance Intelligence")
+        canvas.drawRightString(PAGE_W - MARGIN_R, fy, "Executive Summary")
+        canvas.restoreState()
+
+    # ── Fetch data ─────────────────────────────────────────────────────────────
+    data = _fetch_data(
+        ["overview", "asset_health", "pm_suggestions", "insights"],
+        days, location_id
+    )
+    preds, counts, avg_score = _overview_stats(data)
+    total = len(preds)
+    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL", "HIGH")][:5]
+    pms    = data.get("pm_suggestions", [])[:4]
+    ins    = data.get("insights", [])[:3]
+
+    # ── Shared styles ──────────────────────────────────────────────────────────
+    meta_sty  = ps("SM",  fontSize=8,  textColor=C["slate_700"])
+    sh_sty    = ps("SSH", fontSize=8,  fontName="Helvetica-Bold",
+                   textColor=C["slate_900"], letterSpacing=0.8)
+    tbl_h_sty = ps("STH", fontSize=7.5, fontName="Helvetica-Bold",
+                   textColor=C["white"], leading=10)
+    cell_sty  = ps("STC", fontSize=7.5, textColor=C["slate_700"],  leading=10)
+    bold_sty  = ps("STCB",fontSize=7.5, fontName="Helvetica-Bold",
+                   textColor=C["slate_900"], leading=10)
+    dim_sty   = ps("STD", fontSize=7,   textColor=colors.HexColor("#94a3b8"), leading=9)
+
+    # ── Table style helpers ────────────────────────────────────────────────────
+    HDR_TS = TableStyle([
+        ("BACKGROUND",    (0,0),(-1,0),  C["indigo"]),
+        ("TEXTCOLOR",     (0,0),(-1,0),  C["white"]),
+        ("FONTNAME",      (0,0),(-1,0),  "Helvetica-Bold"),
+        ("FONTSIZE",      (0,0),(-1,0),  7.5),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1), [C["white"], C["slate_50"]]),
+        ("FONTSIZE",      (0,1),(-1,-1), 7.5),
+        ("FONTNAME",      (0,1),(-1,-1), "Helvetica"),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("TOPPADDING",    (0,0),(-1,-1), 4),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
+        ("LEFTPADDING",   (0,0),(-1,-1), 6),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 6),
+        ("LINEBELOW",     (0,0),(-1,0),  1, C["indigo_dark"]),
+        ("LINEBELOW",     (0,1),(-1,-1), 0.4, C["slate_200"]),
+    ])
+
+    def compact_heading(label):
+        bar = Table([[""]], colWidths=[4], rowHeights=[14])
+        bar.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), C["indigo"]),
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        t = Table([[bar, Paragraph(label.upper(), sh_sty)]], colWidths=[10, CONTENT_W - 10])
+        t.setStyle(TableStyle([
+            ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+            ("LEFTPADDING",   (0,0),(0,0),   3),
+            ("LEFTPADDING",   (1,0),(1,0),   7),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        return [Spacer(1, 10), t, Spacer(1, 4),
+                HRFlowable(width="100%", thickness=0.5, color=C["slate_200"], spaceAfter=6)]
+
+    # ── Build story ────────────────────────────────────────────────────────────
+    story = []
+
+    gen_time = datetime.utcnow().strftime("%B %d, %Y  ·  %H:%M UTC")
+    story.append(Paragraph(
+        f"Generated {gen_time}  ·  Period: {period_label}",
+        meta_sty
+    ))
+    story.append(Spacer(1, 10))
+
+    # ── Fleet Health ──────────────────────────────────────────────────────────
+    story.extend(compact_heading("Fleet Health Overview"))
+
+    # KPI cards: compact 4-across
+    # Math: CARD_W=CONTENT_W/4, grid pad=2, card pad=4 → inner=CARD_W-12
+    CARD_W    = CONTENT_W / 4
+    G_PAD     = 2
+    C_PAD     = 4
+    C_CELL_W  = CARD_W - G_PAD * 2
+    C_INN_W   = C_CELL_W - C_PAD * 2
+
+    kpi_cells = []
+    for rl in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        cnt = counts[rl]
+        fg  = colors.HexColor(RISK_COLORS[rl])
+        bg  = colors.HexColor(RISK_BG[rl])
+        num = Paragraph(str(cnt), ps(f"KN_{rl}", fontName="Helvetica-Bold", fontSize=22,
+                                      textColor=fg, leading=24, alignment=TA_CENTER))
+        lbl = Paragraph(rl, ps(f"KL_{rl}", fontSize=7, fontName="Helvetica-Bold",
+                                textColor=C["slate_700"], leading=9, alignment=TA_CENTER))
+        inn = Table([[num],[lbl]], colWidths=[C_INN_W])
+        inn.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 1),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 1),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        card = Table([[inn]], colWidths=[C_CELL_W])
+        card.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), bg),
+            ("TOPPADDING",    (0,0),(-1,-1), 10),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 10),
+            ("LEFTPADDING",   (0,0),(-1,-1), C_PAD),
+            ("RIGHTPADDING",  (0,0),(-1,-1), C_PAD),
+            ("BOX",           (0,0),(-1,-1), 0.5, colors.HexColor(RISK_COLORS[rl] + "40"
+                                                   if len(RISK_COLORS[rl]) == 7
+                                                   else RISK_COLORS[rl])),
+        ]))
+        kpi_cells.append(card)
+
+    grid = Table([kpi_cells], colWidths=[CARD_W]*4)
+    grid.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(-1,-1), G_PAD),
+        ("RIGHTPADDING",  (0,0),(-1,-1), G_PAD),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+    ]))
+    story.append(grid)
+    story.append(Spacer(1, 8))
+
+    # Stats row
+    prob_str = f"{avg_score*100:.1f}%" if avg_score else "—"
+    HALF_W   = CONTENT_W / 2
+    SL = SR  = 10
+    S_INN    = HALF_W - SL - SR
+
+    def stat_pair(big, label):
+        t = Table(
+            [[Paragraph(big,   ps(f"SB_{big}", fontName="Helvetica-Bold", fontSize=13,
+                                   textColor=C["indigo"], leading=15))],
+             [Paragraph(label, ps(f"SL_{label}", fontSize=7, textColor=C["slate_700"],
+                                   fontName="Helvetica-Bold", leading=9))]],
+            colWidths=[S_INN],
+        )
+        t.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 1),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 1),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        return t
+
+    stats = Table(
+        [[stat_pair(str(total), "Total Assets Monitored"),
+          stat_pair(prob_str,   "Avg Failure Probability")]],
+        colWidths=[HALF_W, HALF_W],
+    )
+    stats.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 5),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 5),
+        ("LEFTPADDING",   (0,0),(0,0),   SL),
+        ("RIGHTPADDING",  (0,0),(0,0),   SR),
+        ("LEFTPADDING",   (1,0),(1,0),   SL),
+        ("RIGHTPADDING",  (1,0),(1,0),   SR),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("LINEBEFORE",    (1,0),(1,-1),  0.5, C["slate_200"]),
+    ]))
+    story.append(stats)
+    story.append(Spacer(1, 6))
+
+    # Risk distribution bar
+    if total > 0:
+        bar_lbl = ps("SBL", fontSize=7, textColor=C["slate_700"], leading=9, spaceAfter=2)
+        story.append(Paragraph("RISK DISTRIBUTION", bar_lbl))
+        W, H = CONTENT_W, 16
+        d = Drawing(W, H)
+        x = 0
+        for rl in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+            cnt = counts.get(rl, 0)
+            if cnt == 0 or total == 0: continue
+            seg_w = (cnt / total) * W
+            d.add(Rect(x, 0, seg_w, H, fillColor=colors.HexColor(RISK_COLORS[rl]), strokeColor=None))
+            if seg_w > 20:
+                d.add(String(x + seg_w/2, H/2 - 3, str(cnt),
+                             fontSize=7, fontName="Helvetica-Bold",
+                             fillColor=colors.white, textAnchor="middle"))
+            x += seg_w
+        story.append(d)
+        leg_items = [
+            Paragraph(f"<font color='{RISK_COLORS[rl]}'><b>■</b></font> {rl} ({counts[rl]})",
+                      ps(f"SLeg_{rl}", fontSize=6.5, textColor=C["slate_700"], leading=9))
+            for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]
+        ]
+        leg = Table([leg_items], colWidths=[CONTENT_W/4]*4)
+        leg.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 3),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+            ("LEFTPADDING",   (0,0),(-1,-1), 4),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        story.append(leg)
+
+    # ── Urgent Attention ──────────────────────────────────────────────────────
+    story.extend(compact_heading("Urgent Attention"))
+
+    if urgent:
+        # Col widths: asset_id | risk | fail% | since_pm | action
+        # Sum must = CONTENT_W with padding absorbed by table
+        # Table has L=6, R=6 padding per cell → subtract from colWidths
+        _CW = [90, 48, 46, 60, CONTENT_W - 90 - 48 - 46 - 60]  # last col fills rest = 220
+        rows = [["Asset ID", "Risk", "Fail %", "Since PM", "Recommendation"]]
+        for p in urgent:
+            rl  = p.get("risk_level", "LOW")
+            rec = (p.get("recommendation") or "").strip()
+            rows.append([
+                p.get("asset_id", ""),
+                rl,
+                _fmt_prob(p.get("failure_probability")),
+                f"{_fmt_days(p.get('days_since_last_pm'))}d",
+                rec[:80] + ("…" if len(rec) > 80 else ""),
+            ])
+        t = Table(rows, colWidths=_CW, repeatRows=1)
+        ts = TableStyle(list(HDR_TS._cmds))
+        # Risk column coloring
+        for ri, p in enumerate(urgent, start=1):
+            rl = p.get("risk_level", "LOW")
+            ts.add("TEXTCOLOR", (1, ri), (1, ri), colors.HexColor(RISK_COLORS[rl]))
+            ts.add("FONTNAME",  (1, ri), (1, ri), "Helvetica-Bold")
+        t.setStyle(ts)
+        story.append(t)
+    else:
+        story.append(Paragraph("No critical or high-risk assets.", ps("SNone", fontSize=8, textColor=C["slate_700"])))
+
+    # ── PM Recommendations ────────────────────────────────────────────────────
+    story.extend(compact_heading("PM Schedule Recommendations"))
+
+    if pms:
+        _PW = [90, 100, 55, CONTENT_W - 90 - 100 - 55]   # last col fills = 259
+        pm_rows = [["Asset ID", "Schedule Change", "Status", "Reason"]]
+        for p in pms:
+            curr = p.get("current_pm_frequency_days")
+            sugg = p.get("suggested_pm_frequency_days")
+            freq = (f"{curr}d → {sugg}d" if curr and sugg else "Adjust interval")
+            reason = (p.get("reason") or "")
+            status = (p.get("status") or "pending").title()
+            pm_rows.append([
+                p.get("asset_id", ""),
+                freq,
+                status,
+                reason[:70] + ("…" if len(reason) > 70 else ""),
+            ])
+        t = Table(pm_rows, colWidths=_PW, repeatRows=1)
+        ts = TableStyle(list(HDR_TS._cmds))
+        for ri, p in enumerate(pms, start=1):
+            status = (p.get("status") or "pending").title()
+            sc = colors.HexColor(RISK_COLORS["LOW"] if status == "Implemented" else RISK_COLORS["MEDIUM"])
+            ts.add("TEXTCOLOR", (2, ri), (2, ri), sc)
+            ts.add("FONTNAME",  (2, ri), (2, ri), "Helvetica-Bold")
+        t.setStyle(ts)
+        story.append(t)
+    else:
+        story.append(Paragraph("No PM recommendations available.", ps("SNone2", fontSize=8, textColor=C["slate_700"])))
+
+    # ── AI Insights ───────────────────────────────────────────────────────────
+    story.extend(compact_heading("Key Insights"))
+
+    if ins:
+        for item in ins:
+            impact = (item.get("impact_level") or "Low").title()
+            ic     = colors.HexColor(IMPACT_COLORS.get(impact, SLATE_700))
+            itype  = (item.get("insight_type") or "").replace("_", " ").title()
+            title  = item.get("title", "")
+            desc   = (item.get("description") or "").strip()
+            text   = f"<b>{title}</b>"
+            if desc and desc != title:
+                short = desc[:100] + ("…" if len(desc) > 100 else "")
+                text += f" — {short}"
+            type_p  = Paragraph(itype.upper(), ps(f"SIT_{itype}", fontSize=6.5,
+                                  fontName="Helvetica-Bold", textColor=ic, leading=9))
+            body_p  = Paragraph(text, ps(f"SIB_{title[:10]}", fontSize=7.5,
+                                  textColor=C["slate_700"], leading=10))
+            # _SW=5, _BL=8, _BR=6, _BW=CONTENT_W-5, _B_AV=CONTENT_W-5-8-6=485
+            _SW, _BL, _BR = 5, 8, 6
+            _BW   = CONTENT_W - _SW
+            _B_AV = _BW - _BL - _BR
+            stripe = Table([[""]], colWidths=[_SW], rowHeights=[26])
+            stripe.setStyle(TableStyle([
+                ("BACKGROUND",    (0,0),(-1,-1), ic),
+                ("TOPPADDING",    (0,0),(-1,-1), 0),
+                ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+                ("LEFTPADDING",   (0,0),(-1,-1), 0),
+                ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+            ]))
+            body_tbl = Table([[type_p],[body_p]], colWidths=[_B_AV])
+            body_tbl.setStyle(TableStyle([
+                ("TOPPADDING",    (0,0),(-1,-1), 1),
+                ("BOTTOMPADDING", (0,0),(-1,-1), 1),
+                ("LEFTPADDING",   (0,0),(-1,-1), 0),
+                ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+            ]))
+            row = Table([[stripe, body_tbl]], colWidths=[_SW, _BW])
+            row.setStyle(TableStyle([
+                ("BACKGROUND",    (0,0),(-1,-1), C["slate_50"]),
+                ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+                ("TOPPADDING",    (0,0),(0,0),   0),
+                ("BOTTOMPADDING", (0,0),(0,0),   0),
+                ("LEFTPADDING",   (0,0),(0,0),   0),
+                ("RIGHTPADDING",  (0,0),(0,0),   0),
+                ("TOPPADDING",    (1,0),(1,0),   6),
+                ("BOTTOMPADDING", (1,0),(1,0),   6),
+                ("LEFTPADDING",   (1,0),(1,0),   _BL),
+                ("RIGHTPADDING",  (1,0),(1,0),   _BR),
+                ("LINEBELOW",     (0,0),(-1,-1), 0.5, C["slate_200"]),
+            ]))
+            story.append(row)
+        story.append(Spacer(1, 4))
+    else:
+        story.append(Paragraph("No insights available.", ps("SNone3", fontSize=8, textColor=C["slate_700"])))
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        topMargin=MARGIN_T, bottomMargin=MARGIN_B * 1.4,
+        leftMargin=MARGIN_L, rightMargin=MARGIN_R,
+    )
+    doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)
+    buf.seek(0)
+    return buf
+
+
 # ── Endpoint ───────────────────────────────────────────────────────────────────
 
 @router.post("/generate")
@@ -1136,14 +1540,18 @@ def generate_report(
     if body.format not in ("xlsx", "pdf"):
         raise HTTPException(400, "Format must be 'xlsx' or 'pdf'")
 
-    org_slug  = _get_org_name(location_id)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H%M")
-    filename  = f"truesignal-{org_slug}-{timestamp}.{body.format}"
+    org_slug   = _get_org_name(location_id)
+    timestamp  = datetime.utcnow().strftime("%Y-%m-%d-%H%M")
+    type_label = "summary" if (body.format == "pdf" and body.report_type == "summary") else "report"
+    filename   = f"truesignal-{org_slug}-{type_label}-{timestamp}.{body.format}"
 
     try:
         if body.format == "xlsx":
             buf = _generate_xlsx(body.sections, body.days, location_id)
             media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif body.report_type == "summary":
+            buf = _generate_summary_pdf(body.sections, body.days, location_id)
+            media_type = "application/pdf"
         else:
             buf = _generate_pdf(body.sections, body.days, location_id)
             media_type = "application/pdf"

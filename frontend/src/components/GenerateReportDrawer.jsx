@@ -13,6 +13,7 @@ const DEFAULT_SECTIONS = {
 
 export default function GenerateReportDrawer({ open, onClose, pageSections }) {
   const { syncing, lastSynced } = useAuth();
+  const [reportType, setReportType] = useState('summary');
   const [sections, setSections] = useState(DEFAULT_SECTIONS);
   const [dateRange, setDateRange] = useState('30d');
   const [format, setFormat] = useState('pdf');
@@ -42,9 +43,9 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
     setLoading(true);
     setError(null);
     try {
-      const selectedSections = Object.entries(sections)
-        .filter(([, { checked }]) => checked)
-        .map(([key]) => key);
+      const selectedSections = reportType === 'summary'
+        ? Object.keys(sections)
+        : Object.entries(sections).filter(([, { checked }]) => checked).map(([key]) => key);
       if (!selectedSections.length) {
         setError('Select at least one section.');
         return;
@@ -53,6 +54,7 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
         sections: selectedSections,
         days: daysMap[dateRange],
         format,
+        reportType,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -93,7 +95,31 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-          {/* Sections */}
+          {/* Report Type */}
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Report Type</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[['summary','Summary (1 page)'],['full','Full Report']].map(([v,l]) => (
+                <button
+                  key={v}
+                  onClick={() => setReportType(v)}
+                  className={`py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                    reportType === v
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >{l}</button>
+              ))}
+            </div>
+            {reportType === 'summary' && (
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                One-page executive overview — fleet health, urgent assets, key recommendations.
+              </p>
+            )}
+          </div>
+
+          {/* Sections — only shown for Full Report */}
+          {reportType === 'full' && (
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Include Sections</p>
             <div className="space-y-1">
@@ -115,6 +141,7 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
               ))}
             </div>
           </div>
+          )}
 
           {/* Date Range */}
           <div>
@@ -192,7 +219,7 @@ export default function GenerateReportDrawer({ open, onClose, pageSections }) {
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Download className="w-4 h-4" />
             }
-            {loading ? 'Generating…' : `Download ${format.toUpperCase()}`}
+            {loading ? 'Generating…' : `Download ${reportType === 'summary' ? 'Summary' : 'Full Report'} ${format === 'pdf' ? 'PDF' : 'XLSX'}`}
           </button>
         </div>
       </div>

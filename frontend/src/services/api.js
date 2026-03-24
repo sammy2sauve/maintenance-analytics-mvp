@@ -28,7 +28,7 @@ export const getPredictions = {
 };
 
 // Report generation -- returns a Blob for browser download
-export const generateReport = async ({ sections, days, format }) => {
+export const generateReport = async ({ sections, days, format, reportType = 'summary' }) => {
   const token = localStorage.getItem('ts_token');
   const response = await fetch(`${API_BASE_URL}/reports/generate`, {
     method: 'POST',
@@ -36,7 +36,7 @@ export const generateReport = async ({ sections, days, format }) => {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ sections, days: days || null, format }),
+    body: JSON.stringify({ sections, days: days || null, format, report_type: reportType }),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
