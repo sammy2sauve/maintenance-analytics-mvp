@@ -1128,134 +1128,133 @@ def _generate_xlsx(sections: List[str], days: Optional[int], location_id: int) -
 # ── One-page summary PDF ───────────────────────────────────────────────────────
 
 def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id: int) -> io.BytesIO:
-    """Single-page maintenance health summary — executive overview."""
+    """Single-page dark-themed maintenance health summary — executive overview."""
     from reportlab.lib.pagesizes import letter
     from reportlab.lib import colors
     from reportlab.lib.units import inch
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.graphics.shapes import Drawing, Rect, String
     from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
-    C = {k: colors.HexColor(v) for k, v in {
-        "indigo": INDIGO, "indigo_dark": INDIGO_DARK, "indigo_light": INDIGO_LIGHT,
-        "emerald": EMERALD, "slate_50": SLATE_50, "slate_100": SLATE_100,
-        "slate_200": SLATE_200, "slate_700": SLATE_700, "slate_900": SLATE_900,
-        "white": WHITE,
-    }.items()}
+    _hex = colors.HexColor
+    CL = {
+        "ind":    _hex(INDIGO),
+        "ind_dk": _hex(INDIGO_DARK),
+        "ind_lt": _hex(INDIGO_LIGHT),
+        "em":     _hex(EMERALD),
+        "bg":     _hex("#0f172a"),
+        "card":   _hex("#1e293b"),
+        "card2":  _hex("#172030"),
+        "s300":   _hex("#cbd5e1"),
+        "s400":   _hex("#94a3b8"),
+        "s500":   _hex("#64748b"),
+        "s600":   _hex("#475569"),
+        "s700":   _hex("#334155"),
+        "wh":     _hex("#ffffff"),
+    }
+    risk_c   = {k: _hex(v) for k, v in RISK_COLORS.items()}
+    impact_c = {k: _hex(v) for k, v in IMPACT_COLORS.items()}
 
-    PAGE_W, PAGE_H = letter
-    HEADER_H = 0.85 * inch
-    MARGIN_L = MARGIN_R = 0.75 * inch
-    MARGIN_T = HEADER_H + 0.35 * inch
-    MARGIN_B = 0.65 * inch
-    CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
+    # ── Page geometry ──────────────────────────────────────────────────────────
+    PAGE_W, PAGE_H = letter          # 612 × 792
+    HEADER_H = 0.75 * inch           # 54 pt
+    ML = MR  = 0.5  * inch           # 36 pt each side
+    MT       = HEADER_H + 0.22 * inch  # ~70 pt top margin
+    MB       = 0.55 * inch           # ~40 pt bottom margin
+    CW       = PAGE_W - ML - MR      # 540 pt content width
 
-    styles = getSampleStyleSheet()
-    def ps(name, **kw):
-        return ParagraphStyle(name, parent=styles["Normal"], **kw)
+    # two-col split — zero padding on wrapper, exact widths
+    LC = 294            # left column outer width
+    RC = CW - LC        # 246  right column outer width
+    # right cell gets LEFTPADDING=10 in the wrapper → right inner width = 236
+    RI = RC - 10        # 236
 
     period_label = f"Last {days} days" if days else "All time"
 
+    # ── Canvas: full dark page, branded header + footer ───────────────────────
     def _draw_page(canvas, doc):
         canvas.saveState()
-        canvas.setFillColor(C["slate_900"])
-        canvas.rect(0, PAGE_H - HEADER_H, PAGE_W, HEADER_H, fill=1, stroke=0)
-        canvas.setFillColor(C["indigo"])
-        canvas.rect(0, PAGE_H - HEADER_H - 1.5, PAGE_W, 1.5, fill=1, stroke=0)
-        lx = MARGIN_L
-        base_y = PAGE_H - HEADER_H / 2 - (14 * 1.15)
-        sx = sy = 1.15
-        ekg_pts = [(0,14),(8,14),(11,14),(14,3),(17,25),(20,14),(22,14),(44,14)]
-        canvas.setStrokeColor(C["indigo"])
+        # Full dark background
+        canvas.setFillColor(CL["bg"])
+        canvas.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
+        # Indigo accent strip under header
+        canvas.setFillColor(CL["ind"])
+        canvas.rect(0, PAGE_H - HEADER_H - 2, PAGE_W, 2, fill=1, stroke=0)
+        # EKG waveform logo
+        lx, sy = ML, 1.15
+        base_y = PAGE_H - HEADER_H / 2 - (14 * sy)
+        pts = [(0,14),(8,14),(11,14),(14,3),(17,25),(20,14),(22,14),(44,14)]
+        canvas.setStrokeColor(CL["ind"])
         canvas.setLineWidth(1.6)
-        path = canvas.beginPath()
-        for i, (x, y) in enumerate(ekg_pts):
-            px = lx + x * sx
-            py = base_y + (14 - y) * sy
-            if i == 0: path.moveTo(px, py)
-            else:       path.lineTo(px, py)
-        canvas.drawPath(path, stroke=1, fill=0)
-        canvas.setFillColor(C["emerald"])
-        canvas.circle(lx + 14*sx, base_y + (14-3)*sy, 2.8, fill=1, stroke=0)
-        wx = lx + 44*sx + 10
+        p = canvas.beginPath()
+        for i, (x, y) in enumerate(pts):
+            px, py = lx + x*sy, base_y + (14 - y)*sy
+            p.moveTo(px, py) if i == 0 else p.lineTo(px, py)
+        canvas.drawPath(p, stroke=1, fill=0)
+        canvas.setFillColor(CL["em"])
+        canvas.circle(lx + 14*sy, base_y + 11*sy, 2.8, fill=1, stroke=0)
+        # Wordmark
+        wx = lx + 44*sy + 10
         wy = PAGE_H - HEADER_H/2 + 3
         canvas.setFont("Helvetica-Bold", 15)
-        canvas.setFillColor(C["white"])
-        true_w = canvas.stringWidth("True", "Helvetica-Bold", 15)
+        canvas.setFillColor(CL["wh"])
+        tw = canvas.stringWidth("True", "Helvetica-Bold", 15)
         canvas.drawString(wx, wy, "True")
-        canvas.setFillColor(C["emerald"])
-        canvas.drawString(wx + true_w, wy, "Signal")
+        canvas.setFillColor(CL["em"])
+        canvas.drawString(wx + tw, wy, "Signal")
         canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor(INDIGO_LIGHT))
+        canvas.setFillColor(CL["ind_lt"])
         canvas.drawString(wx, wy - 12, "MAINTENANCE INTELLIGENCE")
-        rx = PAGE_W - MARGIN_R
-        canvas.setFont("Helvetica-Bold", 8)
-        canvas.setFillColor(C["white"])
+        # Right header text
+        rx = PAGE_W - MR
+        canvas.setFont("Helvetica-Bold", 9)
+        canvas.setFillColor(CL["wh"])
         canvas.drawRightString(rx, PAGE_H - HEADER_H/2 + 3, "Maintenance Health Summary")
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor(INDIGO_LIGHT))
-        canvas.drawRightString(rx, PAGE_H - HEADER_H/2 - 9, period_label)
-        fy = MARGIN_B * 0.55
-        canvas.setStrokeColor(C["slate_200"])
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(CL["ind_lt"])
+        canvas.drawRightString(rx, PAGE_H - HEADER_H/2 - 10, period_label)
+        # Footer
+        fy = 14
+        canvas.setStrokeColor(CL["s700"])
         canvas.setLineWidth(0.5)
-        canvas.line(MARGIN_L, fy + 10, PAGE_W - MARGIN_R, fy + 10)
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor(SLATE_700))
-        canvas.drawString(MARGIN_L, fy, "TrueSignal · Maintenance Intelligence")
-        canvas.drawRightString(PAGE_W - MARGIN_R, fy, "Executive Summary")
+        canvas.line(ML, fy + 10, PAGE_W - MR, fy + 10)
+        canvas.setFont("Helvetica", 6.5)
+        canvas.setFillColor(CL["s600"])
+        canvas.drawString(ML, fy, "TrueSignal · Maintenance Intelligence")
+        canvas.drawRightString(PAGE_W - MR, fy, "Executive Summary · Confidential")
         canvas.restoreState()
 
-    # ── Fetch data ─────────────────────────────────────────────────────────────
-    data = _fetch_data(
-        ["overview", "asset_health", "pm_suggestions", "insights"],
-        days, location_id
-    )
+    # ── Data ──────────────────────────────────────────────────────────────────
+    data   = _fetch_data(["overview","asset_health","pm_suggestions","insights"], days, location_id)
     preds, counts, avg_score = _overview_stats(data)
-    total = len(preds)
-    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL", "HIGH")][:5]
-    pms    = data.get("pm_suggestions", [])[:4]
-    ins    = data.get("insights", [])[:3]
+    total  = len(preds)
+    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL","HIGH")][:4]
+    pms    = (data.get("pm_suggestions") or [])[:3]
+    ins    = (data.get("insights") or [])[:2]
+    pm_pending = sum(1 for p in (data.get("pm_suggestions") or [])
+                     if (p.get("status") or "pending").lower() == "pending")
 
-    # ── Shared styles ──────────────────────────────────────────────────────────
-    meta_sty  = ps("SM",  fontSize=8,  textColor=C["slate_700"])
-    sh_sty    = ps("SSH", fontSize=8,  fontName="Helvetica-Bold",
-                   textColor=C["slate_900"], letterSpacing=0.8)
-    tbl_h_sty = ps("STH", fontSize=7.5, fontName="Helvetica-Bold",
-                   textColor=C["white"], leading=10)
-    cell_sty  = ps("STC", fontSize=7.5, textColor=C["slate_700"],  leading=10)
-    bold_sty  = ps("STCB",fontSize=7.5, fontName="Helvetica-Bold",
-                   textColor=C["slate_900"], leading=10)
-    dim_sty   = ps("STD", fontSize=7,   textColor=colors.HexColor("#94a3b8"), leading=9)
+    # ── Style factory ─────────────────────────────────────────────────────────
+    _base = getSampleStyleSheet()["Normal"]
+    def ps(name, **kw):
+        return ParagraphStyle(name, parent=_base, **kw)
 
-    # ── Table style helpers ────────────────────────────────────────────────────
-    HDR_TS = TableStyle([
-        ("BACKGROUND",    (0,0),(-1,0),  C["indigo"]),
-        ("TEXTCOLOR",     (0,0),(-1,0),  C["white"]),
-        ("FONTNAME",      (0,0),(-1,0),  "Helvetica-Bold"),
-        ("FONTSIZE",      (0,0),(-1,0),  7.5),
-        ("ROWBACKGROUNDS",(0,1),(-1,-1), [C["white"], C["slate_50"]]),
-        ("FONTSIZE",      (0,1),(-1,-1), 7.5),
-        ("FONTNAME",      (0,1),(-1,-1), "Helvetica"),
-        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
-        ("TOPPADDING",    (0,0),(-1,-1), 4),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
-        ("LEFTPADDING",   (0,0),(-1,-1), 6),
-        ("RIGHTPADDING",  (0,0),(-1,-1), 6),
-        ("LINEBELOW",     (0,0),(-1,0),  1, C["indigo_dark"]),
-        ("LINEBELOW",     (0,1),(-1,-1), 0.4, C["slate_200"]),
-    ])
-
-    def compact_heading(label):
-        bar = Table([[""]], colWidths=[4], rowHeights=[14])
+    # ── Section heading: indigo left bar + white label ────────────────────────
+    def sec_head(label, width):
+        # bar: colWidths=[4], label: colWidths=[width-10], outer: [10, width-10]=width
+        bar = Table([[""]], colWidths=[4], rowHeights=[15])
         bar.setStyle(TableStyle([
-            ("BACKGROUND",    (0,0),(-1,-1), C["indigo"]),
+            ("BACKGROUND",    (0,0),(-1,-1), CL["ind"]),
             ("TOPPADDING",    (0,0),(-1,-1), 0),
             ("BOTTOMPADDING", (0,0),(-1,-1), 0),
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        t = Table([[bar, Paragraph(label.upper(), sh_sty)]], colWidths=[10, CONTENT_W - 10])
+        lbl_p = Paragraph(label.upper(),
+                          ps(f"SH_{label[:8]}", fontSize=7.5, fontName="Helvetica-Bold",
+                             textColor=CL["wh"], letterSpacing=0.6))
+        t = Table([[bar, lbl_p]], colWidths=[10, width - 10])
         t.setStyle(TableStyle([
             ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
             ("TOPPADDING",    (0,0),(-1,-1), 0),
@@ -1264,264 +1263,340 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
             ("LEFTPADDING",   (1,0),(1,0),   7),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        return [Spacer(1, 10), t, Spacer(1, 4),
-                HRFlowable(width="100%", thickness=0.5, color=C["slate_200"], spaceAfter=6)]
+        return t
 
-    # ── Build story ────────────────────────────────────────────────────────────
-    story = []
-
-    gen_time = datetime.utcnow().strftime("%B %d, %Y  ·  %H:%M UTC")
-    story.append(Paragraph(
-        f"Generated {gen_time}  ·  Period: {period_label}",
-        meta_sty
-    ))
-    story.append(Spacer(1, 10))
-
-    # ── Fleet Health ──────────────────────────────────────────────────────────
-    story.extend(compact_heading("Fleet Health Overview"))
-
-    # KPI cards: compact 4-across
-    # Math: CARD_W=CONTENT_W/4, grid pad=2, card pad=4 → inner=CARD_W-12
-    CARD_W    = CONTENT_W / 4
-    G_PAD     = 2
-    C_PAD     = 4
-    C_CELL_W  = CARD_W - G_PAD * 2
-    C_INN_W   = C_CELL_W - C_PAD * 2
+    # ── KPI cards (4 equal across CW=540) ────────────────────────────────────
+    # Each card outer = CW/4 = 135pt.
+    # Grid cell padding G=3 each side → card inner = 135-6 = 129pt (CRD_INN)
+    # Card body padding CP=8 each side → inner available = 129-16 = 113pt (CRD_AV)
+    G, CP    = 3, 8
+    CRD      = CW / 4       # 135
+    CRD_INN  = CRD - G*2    # 129
+    CRD_AV   = CRD_INN - CP*2  # 113
 
     kpi_cells = []
-    for rl in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+    for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]:
         cnt = counts[rl]
-        fg  = colors.HexColor(RISK_COLORS[rl])
-        bg  = colors.HexColor(RISK_BG[rl])
-        num = Paragraph(str(cnt), ps(f"KN_{rl}", fontName="Helvetica-Bold", fontSize=22,
-                                      textColor=fg, leading=24, alignment=TA_CENTER))
-        lbl = Paragraph(rl, ps(f"KL_{rl}", fontSize=7, fontName="Helvetica-Bold",
-                                textColor=C["slate_700"], leading=9, alignment=TA_CENTER))
-        inn = Table([[num],[lbl]], colWidths=[C_INN_W])
-        inn.setStyle(TableStyle([
-            ("TOPPADDING",    (0,0),(-1,-1), 1),
-            ("BOTTOMPADDING", (0,0),(-1,-1), 1),
+        rc  = risk_c[rl]
+        # Thin top colour bar
+        accent = Table([[""]], colWidths=[CRD_INN], rowHeights=[4])
+        accent.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), rc),
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        card = Table([[inn]], colWidths=[C_CELL_W])
+        # Number + label — colWidths=[CRD_AV=113]
+        body = Table([
+            [Paragraph(str(cnt), ps(f"KN_{rl}", fontName="Helvetica-Bold", fontSize=28,
+                                    textColor=rc, leading=30, alignment=TA_CENTER))],
+            [Paragraph(rl, ps(f"KL_{rl}", fontSize=6.5, fontName="Helvetica-Bold",
+                               textColor=CL["s400"], leading=8, alignment=TA_CENTER,
+                               letterSpacing=1.2))],
+        ], colWidths=[CRD_AV])
+        body.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ]))
+        # Card: row0=accent (no pad), row1=body (CP pad)
+        # accent colWidths=[CRD_INN=129] with zero pad → available=129 ✓
+        # body colWidths=[CRD_AV=113], cell pad CP=8 → available=CRD_INN-CP-CP=113 ✓
+        card = Table([[accent],[body]], colWidths=[CRD_INN])
         card.setStyle(TableStyle([
-            ("BACKGROUND",    (0,0),(-1,-1), bg),
-            ("TOPPADDING",    (0,0),(-1,-1), 10),
-            ("BOTTOMPADDING", (0,0),(-1,-1), 10),
-            ("LEFTPADDING",   (0,0),(-1,-1), C_PAD),
-            ("RIGHTPADDING",  (0,0),(-1,-1), C_PAD),
-            ("BOX",           (0,0),(-1,-1), 0.5, colors.HexColor(RISK_COLORS[rl] + "40"
-                                                   if len(RISK_COLORS[rl]) == 7
-                                                   else RISK_COLORS[rl])),
+            ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+            ("TOPPADDING",    (0,0),(0,0),   0),
+            ("BOTTOMPADDING", (0,0),(0,0),   0),
+            ("LEFTPADDING",   (0,0),(0,0),   0),
+            ("RIGHTPADDING",  (0,0),(0,0),   0),
+            ("TOPPADDING",    (0,1),(0,1),   CP),
+            ("BOTTOMPADDING", (0,1),(0,1),   CP),
+            ("LEFTPADDING",   (0,1),(0,1),   CP),
+            ("RIGHTPADDING",  (0,1),(0,1),   CP),
         ]))
         kpi_cells.append(card)
 
-    grid = Table([kpi_cells], colWidths=[CARD_W]*4)
-    grid.setStyle(TableStyle([
+    kpi_grid = Table([kpi_cells], colWidths=[CRD]*4)
+    kpi_grid.setStyle(TableStyle([
         ("TOPPADDING",    (0,0),(-1,-1), 0),
         ("BOTTOMPADDING", (0,0),(-1,-1), 0),
-        ("LEFTPADDING",   (0,0),(-1,-1), G_PAD),
-        ("RIGHTPADDING",  (0,0),(-1,-1), G_PAD),
-        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("LEFTPADDING",   (0,0),(-1,-1), G),
+        ("RIGHTPADDING",  (0,0),(-1,-1), G),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
     ]))
-    story.append(grid)
-    story.append(Spacer(1, 8))
 
-    # Stats row
-    prob_str = f"{avg_score*100:.1f}%" if avg_score else "—"
-    HALF_W   = CONTENT_W / 2
-    SL = SR  = 10
-    S_INN    = HALF_W - SL - SR
+    # ── Stats strip (3 stats across CW=540) ──────────────────────────────────
+    # Each col SW=180. Cell pad SL=SR=12 → inner=156 (S_INN)
+    SW, SL, SR = CW / 3, 12, 12  # 180, 12, 12
+    S_INN = SW - SL - SR          # 156
 
-    def stat_pair(big, label):
-        t = Table(
-            [[Paragraph(big,   ps(f"SB_{big}", fontName="Helvetica-Bold", fontSize=13,
-                                   textColor=C["indigo"], leading=15))],
-             [Paragraph(label, ps(f"SL_{label}", fontSize=7, textColor=C["slate_700"],
-                                   fontName="Helvetica-Bold", leading=9))]],
-            colWidths=[S_INN],
-        )
+    def stat_cell(big, label):
+        t = Table([
+            [Paragraph(big,   ps(f"SBN_{big}",  fontName="Helvetica-Bold", fontSize=17,
+                                  textColor=CL["ind"], leading=19, alignment=TA_CENTER))],
+            [Paragraph(label, ps(f"SBL_{label}", fontSize=6.5, fontName="Helvetica-Bold",
+                                  textColor=CL["s400"], leading=8.5, alignment=TA_CENTER,
+                                  letterSpacing=0.8))],
+        ], colWidths=[S_INN])
         t.setStyle(TableStyle([
-            ("TOPPADDING",    (0,0),(-1,-1), 1),
-            ("BOTTOMPADDING", (0,0),(-1,-1), 1),
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
         return t
 
-    stats = Table(
-        [[stat_pair(str(total), "Total Assets Monitored"),
-          stat_pair(prob_str,   "Avg Failure Probability")]],
-        colWidths=[HALF_W, HALF_W],
-    )
-    stats.setStyle(TableStyle([
-        ("TOPPADDING",    (0,0),(-1,-1), 5),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 5),
+    prob_str  = f"{avg_score*100:.1f}%" if avg_score else "—"
+    stats_row = Table([[
+        stat_cell(str(total),      "ASSETS MONITORED"),
+        stat_cell(prob_str,        "AVG FAILURE PROB"),
+        stat_cell(str(pm_pending), "OPEN PM RECS"),
+    ]], colWidths=[SW]*3)
+    stats_row.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+        ("TOPPADDING",    (0,0),(-1,-1), 9),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 9),
         ("LEFTPADDING",   (0,0),(0,0),   SL),
         ("RIGHTPADDING",  (0,0),(0,0),   SR),
         ("LEFTPADDING",   (1,0),(1,0),   SL),
         ("RIGHTPADDING",  (1,0),(1,0),   SR),
+        ("LEFTPADDING",   (2,0),(2,0),   SL),
+        ("RIGHTPADDING",  (2,0),(2,0),   SR),
         ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
-        ("LINEBEFORE",    (1,0),(1,-1),  0.5, C["slate_200"]),
+        ("LINEBEFORE",    (1,0),(2,-1),  0.5, CL["s700"]),
     ]))
-    story.append(stats)
-    story.append(Spacer(1, 6))
 
-    # Risk distribution bar
+    # ── Risk distribution bar ─────────────────────────────────────────────────
+    W_BAR, H_BAR = CW, 14
+    bar_d = Drawing(W_BAR, H_BAR)
     if total > 0:
-        bar_lbl = ps("SBL", fontSize=7, textColor=C["slate_700"], leading=9, spaceAfter=2)
-        story.append(Paragraph("RISK DISTRIBUTION", bar_lbl))
-        W, H = CONTENT_W, 16
-        d = Drawing(W, H)
         x = 0
-        for rl in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]:
             cnt = counts.get(rl, 0)
-            if cnt == 0 or total == 0: continue
-            seg_w = (cnt / total) * W
-            d.add(Rect(x, 0, seg_w, H, fillColor=colors.HexColor(RISK_COLORS[rl]), strokeColor=None))
-            if seg_w > 20:
-                d.add(String(x + seg_w/2, H/2 - 3, str(cnt),
-                             fontSize=7, fontName="Helvetica-Bold",
-                             fillColor=colors.white, textAnchor="middle"))
-            x += seg_w
-        story.append(d)
-        leg_items = [
-            Paragraph(f"<font color='{RISK_COLORS[rl]}'><b>■</b></font> {rl} ({counts[rl]})",
-                      ps(f"SLeg_{rl}", fontSize=6.5, textColor=C["slate_700"], leading=9))
-            for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]
-        ]
-        leg = Table([leg_items], colWidths=[CONTENT_W/4]*4)
-        leg.setStyle(TableStyle([
-            ("TOPPADDING",    (0,0),(-1,-1), 3),
+            if cnt == 0: continue
+            sw = (cnt / total) * W_BAR
+            bar_d.add(Rect(x, 0, sw, H_BAR, fillColor=risk_c[rl], strokeColor=None))
+            if sw > 20:
+                bar_d.add(String(x + sw/2, H_BAR/2 - 3.5, str(cnt),
+                                 fontSize=7, fontName="Helvetica-Bold",
+                                 fillColor=colors.white, textAnchor="middle"))
+            x += sw
+
+    leg_items = [
+        Paragraph(
+            f"<font color='{RISK_COLORS[rl]}'>■</font>"
+            f" <font color='#94a3b8'>{rl} ({counts[rl]})</font>",
+            ps(f"L_{rl}", fontSize=6.5, leading=9),
+        )
+        for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]
+    ]
+    legend = Table([leg_items], colWidths=[CW/4]*4)
+    legend.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 3),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(-1,-1), 4),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+    ]))
+
+    # ── LEFT COLUMN: Urgent Attention (LC=294) ────────────────────────────────
+    # Urgent table cols sum to LC=294: [82, 42, 40, 130]
+    _UCW = [82, 42, 40, LC - 82 - 42 - 40]   # [82, 42, 40, 130]
+    u_h = ps("UH", fontSize=6.5, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
+    u_c = ps("UC", fontSize=6.5, textColor=CL["s300"], leading=9)
+    u_d = ps("UD", fontSize=6.5, textColor=CL["s400"], leading=9)
+
+    u_rows = [[Paragraph(h, u_h) for h in ["ASSET ID","RISK","FAIL %","RECOMMENDATION"]]]
+    for p in urgent:
+        rl  = p.get("risk_level","LOW")
+        rec = (p.get("recommendation") or "").strip()
+        u_rows.append([
+            Paragraph(p.get("asset_id",""),
+                      ps(f"UA_{p.get('asset_id','')[:6]}", fontSize=6.5,
+                         fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)),
+            Paragraph(rl, ps(f"UR_{rl}", fontSize=6.5, fontName="Helvetica-Bold",
+                              textColor=risk_c[rl], leading=9)),
+            Paragraph(_fmt_prob(p.get("failure_probability")), u_d),
+            Paragraph(rec[:55] + ("…" if len(rec) > 55 else ""), u_c),
+        ])
+    if not urgent:
+        u_rows.append([Paragraph("No critical or high-risk assets.", u_c), "", "", ""])
+
+    urg_tbl = Table(u_rows, colWidths=_UCW)
+    urg_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,0),  CL["ind"]),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1), [CL["card"], CL["card2"]]),
+        ("TOPPADDING",    (0,0),(-1,-1), 4),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
+        ("LEFTPADDING",   (0,0),(-1,-1), 5),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 5),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ("LINEBELOW",     (0,0),(-1,0),  0.5, CL["ind_dk"]),
+        ("LINEBELOW",     (0,1),(-1,-1), 0.3, CL["s700"]),
+    ]))
+
+    left_col = Table([
+        [sec_head("Urgent Attention", LC)],
+        [Spacer(1, 5)],
+        [urg_tbl],
+    ], colWidths=[LC])
+    left_col.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(-1,-1), 0),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+    ]))
+
+    # ── RIGHT COLUMN: PM Recs + Key Insights (RC=246, inner RI=236) ──────────
+    # PM table cols sum to RI=236: [82, 75, 79]
+    _PCW = [82, 75, RI - 82 - 75]   # [82, 75, 79]
+    p_h = ps("PH", fontSize=6.5, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
+    p_c = ps("PC", fontSize=6.5, textColor=CL["s300"], leading=9)
+
+    pm_tbl_rows = [[Paragraph(h, p_h) for h in ["ASSET","SCHEDULE","STATUS"]]]
+    for p in pms:
+        curr   = p.get("current_pm_frequency_days")
+        sugg   = p.get("suggested_pm_frequency_days")
+        freq   = f"{curr}d → {sugg}d" if (curr and sugg) else "Adjust"
+        status = (p.get("status") or "pending").title()
+        sc     = risk_c["LOW"] if status == "Implemented" else \
+                 risk_c["MEDIUM"] if status == "Pending" else CL["s400"]
+        pm_tbl_rows.append([
+            Paragraph(p.get("asset_id",""),
+                      ps(f"PA_{p.get('asset_id','')[:6]}", fontSize=6.5,
+                         fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)),
+            Paragraph(freq, p_c),
+            Paragraph(status, ps(f"PS_{status}", fontSize=6.5, fontName="Helvetica-Bold",
+                                  textColor=sc, leading=9)),
+        ])
+    if not pms:
+        pm_tbl_rows.append([Paragraph("No PM recommendations.", p_c), "", ""])
+
+    pm_tbl = Table(pm_tbl_rows, colWidths=_PCW)
+    pm_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,0),  CL["ind"]),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1), [CL["card"], CL["card2"]]),
+        ("TOPPADDING",    (0,0),(-1,-1), 4),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
+        ("LEFTPADDING",   (0,0),(-1,-1), 5),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 5),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ("LINEBELOW",     (0,0),(-1,0),  0.5, CL["ind_dk"]),
+        ("LINEBELOW",     (0,1),(-1,-1), 0.3, CL["s700"]),
+    ]))
+
+    # Insight rows — dot + text, cols sum to RI=236: [10, 226]
+    # Inside text cell: LEFTPAD=5, RIGHTPAD=4 → inner=226-9=217
+    _IDW, _ITW = 10, RI - 10       # 10, 226
+    _ITL, _ITR = 5, 4
+    _IT_INN    = _ITW - _ITL - _ITR  # 217
+
+    ins_rows = []
+    for item in ins:
+        impact = (item.get("impact_level") or "Low").title()
+        ic     = impact_c.get(impact, CL["s500"])
+        title  = item.get("title","")
+        desc   = (item.get("description") or "").strip()
+        short  = desc[:75] + ("…" if len(desc) > 75 else "")
+        dot_p  = Paragraph("●", ps(f"IDot_{title[:5]}", fontSize=8, textColor=ic, leading=10))
+        body_p = Paragraph(
+            f"<b><font color='#ffffff'>{title[:45]}</font></b><br/>"
+            f"<font color='#94a3b8'>{short}</font>",
+            ps(f"IB_{title[:5]}", fontSize=6.5, leading=9),
+        )
+        # inner text table: colWidths=[_IT_INN=217]
+        inner_t = Table([[body_p]], colWidths=[_IT_INN])
+        inner_t.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
             ("BOTTOMPADDING", (0,0),(-1,-1), 0),
-            ("LEFTPADDING",   (0,0),(-1,-1), 4),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        story.append(leg)
+        # Row table: colWidths=[_IDW=10, _ITW=226], sum=236=RI ✓
+        # dot cell: zero pad → available=10 ✓
+        # text cell: LEFTPAD=_ITL=5, RIGHTPAD=_ITR=4 → available=226-9=217=_IT_INN ✓
+        row_t = Table([[dot_p, inner_t]], colWidths=[_IDW, _ITW])
+        row_t.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+            ("TOPPADDING",    (0,0),(0,0),   5),
+            ("BOTTOMPADDING", (0,0),(0,0),   5),
+            ("LEFTPADDING",   (0,0),(0,0),   4),
+            ("RIGHTPADDING",  (0,0),(0,0),   2),
+            ("TOPPADDING",    (1,0),(1,0),   5),
+            ("BOTTOMPADDING", (1,0),(1,0),   5),
+            ("LEFTPADDING",   (1,0),(1,0),   _ITL),
+            ("RIGHTPADDING",  (1,0),(1,0),   _ITR),
+            ("VALIGN",        (0,0),(-1,-1), "TOP"),
+            ("LINEBELOW",     (0,0),(-1,-1), 0.3, CL["s700"]),
+        ]))
+        ins_rows.append(row_t)
 
-    # ── Urgent Attention ──────────────────────────────────────────────────────
-    story.extend(compact_heading("Urgent Attention"))
+    # Right col assembly — colWidths=[RI=236]
+    right_rows = [
+        [sec_head("PM Recommendations", RI)],
+        [Spacer(1, 5)],
+        [pm_tbl],
+        [Spacer(1, 10)],
+        [sec_head("Key Insights", RI)],
+        [Spacer(1, 5)],
+    ]
+    for ir in ins_rows:
+        right_rows.extend([[ir],[Spacer(1,3)]])
+    if not ins:
+        right_rows.append([Paragraph("No insights available.",
+                                     ps("SNone", fontSize=7.5, textColor=CL["s400"]))])
 
-    if urgent:
-        # Col widths: asset_id | risk | fail% | since_pm | action
-        # Sum must = CONTENT_W with padding absorbed by table
-        # Table has L=6, R=6 padding per cell → subtract from colWidths
-        _CW = [90, 48, 46, 60, CONTENT_W - 90 - 48 - 46 - 60]  # last col fills rest = 220
-        rows = [["Asset ID", "Risk", "Fail %", "Since PM", "Recommendation"]]
-        for p in urgent:
-            rl  = p.get("risk_level", "LOW")
-            rec = (p.get("recommendation") or "").strip()
-            rows.append([
-                p.get("asset_id", ""),
-                rl,
-                _fmt_prob(p.get("failure_probability")),
-                f"{_fmt_days(p.get('days_since_last_pm'))}d",
-                rec[:80] + ("…" if len(rec) > 80 else ""),
-            ])
-        t = Table(rows, colWidths=_CW, repeatRows=1)
-        ts = TableStyle(list(HDR_TS._cmds))
-        # Risk column coloring
-        for ri, p in enumerate(urgent, start=1):
-            rl = p.get("risk_level", "LOW")
-            ts.add("TEXTCOLOR", (1, ri), (1, ri), colors.HexColor(RISK_COLORS[rl]))
-            ts.add("FONTNAME",  (1, ri), (1, ri), "Helvetica-Bold")
-        t.setStyle(ts)
-        story.append(t)
-    else:
-        story.append(Paragraph("No critical or high-risk assets.", ps("SNone", fontSize=8, textColor=C["slate_700"])))
+    right_col = Table(right_rows, colWidths=[RI])
+    right_col.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(-1,-1), 0),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+    ]))
 
-    # ── PM Recommendations ────────────────────────────────────────────────────
-    story.extend(compact_heading("PM Schedule Recommendations"))
+    # ── Two-column wrapper — zero padding so widths are exact ─────────────────
+    # Left cell: available=LC=294 (zero pad) ✓
+    # Right cell: LEFTPADDING=10, so available=RC-10=236=RI ✓
+    two_col = Table([[left_col, right_col]], colWidths=[LC, RC])
+    two_col.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(0,0),   0),
+        ("RIGHTPADDING",  (0,0),(0,0),   0),
+        ("LEFTPADDING",   (1,0),(1,0),   10),
+        ("RIGHTPADDING",  (1,0),(1,0),   0),
+        ("TOPPADDING",    (1,0),(1,0),   0),
+        ("BOTTOMPADDING", (1,0),(1,0),   0),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ("LINEBEFORE",    (1,0),(1,-1),  0.5, CL["s700"]),
+    ]))
 
-    if pms:
-        _PW = [90, 100, 55, CONTENT_W - 90 - 100 - 55]   # last col fills = 259
-        pm_rows = [["Asset ID", "Schedule Change", "Status", "Reason"]]
-        for p in pms:
-            curr = p.get("current_pm_frequency_days")
-            sugg = p.get("suggested_pm_frequency_days")
-            freq = (f"{curr}d → {sugg}d" if curr and sugg else "Adjust interval")
-            reason = (p.get("reason") or "")
-            status = (p.get("status") or "pending").title()
-            pm_rows.append([
-                p.get("asset_id", ""),
-                freq,
-                status,
-                reason[:70] + ("…" if len(reason) > 70 else ""),
-            ])
-        t = Table(pm_rows, colWidths=_PW, repeatRows=1)
-        ts = TableStyle(list(HDR_TS._cmds))
-        for ri, p in enumerate(pms, start=1):
-            status = (p.get("status") or "pending").title()
-            sc = colors.HexColor(RISK_COLORS["LOW"] if status == "Implemented" else RISK_COLORS["MEDIUM"])
-            ts.add("TEXTCOLOR", (2, ri), (2, ri), sc)
-            ts.add("FONTNAME",  (2, ri), (2, ri), "Helvetica-Bold")
-        t.setStyle(ts)
-        story.append(t)
-    else:
-        story.append(Paragraph("No PM recommendations available.", ps("SNone2", fontSize=8, textColor=C["slate_700"])))
-
-    # ── AI Insights ───────────────────────────────────────────────────────────
-    story.extend(compact_heading("Key Insights"))
-
-    if ins:
-        for item in ins:
-            impact = (item.get("impact_level") or "Low").title()
-            ic     = colors.HexColor(IMPACT_COLORS.get(impact, SLATE_700))
-            itype  = (item.get("insight_type") or "").replace("_", " ").title()
-            title  = item.get("title", "")
-            desc   = (item.get("description") or "").strip()
-            text   = f"<b>{title}</b>"
-            if desc and desc != title:
-                short = desc[:100] + ("…" if len(desc) > 100 else "")
-                text += f" — {short}"
-            type_p  = Paragraph(itype.upper(), ps(f"SIT_{itype}", fontSize=6.5,
-                                  fontName="Helvetica-Bold", textColor=ic, leading=9))
-            body_p  = Paragraph(text, ps(f"SIB_{title[:10]}", fontSize=7.5,
-                                  textColor=C["slate_700"], leading=10))
-            # _SW=5, _BL=8, _BR=6, _BW=CONTENT_W-5, _B_AV=CONTENT_W-5-8-6=485
-            _SW, _BL, _BR = 5, 8, 6
-            _BW   = CONTENT_W - _SW
-            _B_AV = _BW - _BL - _BR
-            stripe = Table([[""]], colWidths=[_SW], rowHeights=[26])
-            stripe.setStyle(TableStyle([
-                ("BACKGROUND",    (0,0),(-1,-1), ic),
-                ("TOPPADDING",    (0,0),(-1,-1), 0),
-                ("BOTTOMPADDING", (0,0),(-1,-1), 0),
-                ("LEFTPADDING",   (0,0),(-1,-1), 0),
-                ("RIGHTPADDING",  (0,0),(-1,-1), 0),
-            ]))
-            body_tbl = Table([[type_p],[body_p]], colWidths=[_B_AV])
-            body_tbl.setStyle(TableStyle([
-                ("TOPPADDING",    (0,0),(-1,-1), 1),
-                ("BOTTOMPADDING", (0,0),(-1,-1), 1),
-                ("LEFTPADDING",   (0,0),(-1,-1), 0),
-                ("RIGHTPADDING",  (0,0),(-1,-1), 0),
-            ]))
-            row = Table([[stripe, body_tbl]], colWidths=[_SW, _BW])
-            row.setStyle(TableStyle([
-                ("BACKGROUND",    (0,0),(-1,-1), C["slate_50"]),
-                ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
-                ("TOPPADDING",    (0,0),(0,0),   0),
-                ("BOTTOMPADDING", (0,0),(0,0),   0),
-                ("LEFTPADDING",   (0,0),(0,0),   0),
-                ("RIGHTPADDING",  (0,0),(0,0),   0),
-                ("TOPPADDING",    (1,0),(1,0),   6),
-                ("BOTTOMPADDING", (1,0),(1,0),   6),
-                ("LEFTPADDING",   (1,0),(1,0),   _BL),
-                ("RIGHTPADDING",  (1,0),(1,0),   _BR),
-                ("LINEBELOW",     (0,0),(-1,-1), 0.5, C["slate_200"]),
-            ]))
-            story.append(row)
-        story.append(Spacer(1, 4))
-    else:
-        story.append(Paragraph("No insights available.", ps("SNone3", fontSize=8, textColor=C["slate_700"])))
+    # ── Story ─────────────────────────────────────────────────────────────────
+    gen_time = datetime.utcnow().strftime("%B %d, %Y  ·  %H:%M UTC")
+    story = [
+        Paragraph(
+            f"<font color='#64748b'>Generated {gen_time}  ·  Period: {period_label}</font>",
+            ps("Meta", fontSize=7.5, leading=10),
+        ),
+        Spacer(1, 8),
+        kpi_grid,
+        Spacer(1, 6),
+        stats_row,
+        Spacer(1, 6),
+        bar_d,
+        legend,
+        Spacer(1, 12),
+        two_col,
+    ]
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
-        topMargin=MARGIN_T, bottomMargin=MARGIN_B * 1.4,
-        leftMargin=MARGIN_L, rightMargin=MARGIN_R,
+        topMargin=MT, bottomMargin=MB + 10,
+        leftMargin=ML, rightMargin=MR,
     )
     doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)
     buf.seek(0)
