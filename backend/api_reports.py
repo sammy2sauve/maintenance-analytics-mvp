@@ -1175,13 +1175,10 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     # ── Canvas: full dark page, branded header + footer ───────────────────────
     def _draw_page(canvas, doc):
         canvas.saveState()
-        # Full dark background
         canvas.setFillColor(CL["bg"])
         canvas.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
-        # Indigo accent strip under header
         canvas.setFillColor(CL["ind"])
         canvas.rect(0, PAGE_H - HEADER_H - 2, PAGE_W, 2, fill=1, stroke=0)
-        # EKG waveform logo
         lx, sy = ML, 1.15
         base_y = PAGE_H - HEADER_H / 2 - (14 * sy)
         pts = [(0,14),(8,14),(11,14),(14,3),(17,25),(20,14),(22,14),(44,14)]
@@ -1194,7 +1191,6 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         canvas.drawPath(p, stroke=1, fill=0)
         canvas.setFillColor(CL["em"])
         canvas.circle(lx + 14*sy, base_y + 11*sy, 2.8, fill=1, stroke=0)
-        # Wordmark
         wx = lx + 44*sy + 10
         wy = PAGE_H - HEADER_H/2 + 3
         canvas.setFont("Helvetica-Bold", 15)
@@ -1206,7 +1202,6 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(CL["ind_lt"])
         canvas.drawString(wx, wy - 12, "MAINTENANCE INTELLIGENCE")
-        # Right header text
         rx = PAGE_W - MR
         canvas.setFont("Helvetica-Bold", 9)
         canvas.setFillColor(CL["wh"])
@@ -1214,7 +1209,6 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         canvas.setFont("Helvetica", 7.5)
         canvas.setFillColor(CL["ind_lt"])
         canvas.drawRightString(rx, PAGE_H - HEADER_H/2 - 10, period_label)
-        # Footer
         fy = 14
         canvas.setStrokeColor(CL["s700"])
         canvas.setLineWidth(0.5)
@@ -1229,11 +1223,12 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     data   = _fetch_data(["overview","asset_health","pm_suggestions","insights"], days, location_id)
     preds, counts, avg_score = _overview_stats(data)
     total  = len(preds)
-    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL","HIGH")][:4]
-    pms    = (data.get("pm_suggestions") or [])[:3]
-    ins    = (data.get("insights") or [])[:2]
+    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL","HIGH")][:9]
+    pms    = (data.get("pm_suggestions") or [])[:5]
+    ins    = (data.get("insights") or [])[:4]
     pm_pending = sum(1 for p in (data.get("pm_suggestions") or [])
                      if (p.get("status") or "pending").lower() == "pending")
+    org_name = _get_org_name(location_id).replace("-", " ").title()
 
     # ── Style factory ─────────────────────────────────────────────────────────
     _base = getSampleStyleSheet()["Normal"]
@@ -1242,7 +1237,6 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
 
     # ── Section heading: indigo left bar + white label ────────────────────────
     def sec_head(label, width):
-        # bar: colWidths=[4], label: colWidths=[width-10], outer: [10, width-10]=width
         bar = Table([[""]], colWidths=[4], rowHeights=[15])
         bar.setStyle(TableStyle([
             ("BACKGROUND",    (0,0),(-1,-1), CL["ind"]),
@@ -1265,21 +1259,18 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ]))
         return t
 
-    # ── KPI cards (4 equal across CW=540) ────────────────────────────────────
-    # Each card outer = CW/4 = 135pt.
-    # Grid cell padding G=3 each side → card inner = 135-6 = 129pt (CRD_INN)
-    # Card body padding CP=8 each side → inner available = 129-16 = 113pt (CRD_AV)
-    G, CP    = 3, 8
-    CRD      = CW / 4       # 135
-    CRD_INN  = CRD - G*2    # 129
-    CRD_AV   = CRD_INN - CP*2  # 113
+    # ── KPI cards — 4 across, big numbers ────────────────────────────────────
+    # CRD=135, G=4 each side → CRD_INN=127, CP=16 → CRD_AV=95
+    G, CP    = 4, 16
+    CRD      = CW / 4        # 135
+    CRD_INN  = CRD - G*2     # 127
+    CRD_AV   = CRD_INN - CP*2  # 95
 
     kpi_cells = []
     for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]:
         cnt = counts[rl]
         rc  = risk_c[rl]
-        # Thin top colour bar
-        accent = Table([[""]], colWidths=[CRD_INN], rowHeights=[4])
+        accent = Table([[""]], colWidths=[CRD_INN], rowHeights=[5])
         accent.setStyle(TableStyle([
             ("BACKGROUND",    (0,0),(-1,-1), rc),
             ("TOPPADDING",    (0,0),(-1,-1), 0),
@@ -1287,13 +1278,13 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        # Number + label — colWidths=[CRD_AV=113]
+        # Number + label → colWidths=[CRD_AV=95]
         body = Table([
-            [Paragraph(str(cnt), ps(f"KN_{rl}", fontName="Helvetica-Bold", fontSize=28,
-                                    textColor=rc, leading=30, alignment=TA_CENTER))],
-            [Paragraph(rl, ps(f"KL_{rl}", fontSize=6.5, fontName="Helvetica-Bold",
-                               textColor=CL["s400"], leading=8, alignment=TA_CENTER,
-                               letterSpacing=1.2))],
+            [Paragraph(str(cnt), ps(f"KN_{rl}", fontName="Helvetica-Bold", fontSize=40,
+                                    textColor=rc, leading=44, alignment=TA_CENTER))],
+            [Paragraph(rl, ps(f"KL_{rl}", fontSize=7, fontName="Helvetica-Bold",
+                               textColor=CL["s400"], leading=9, alignment=TA_CENTER,
+                               letterSpacing=1.4))],
         ], colWidths=[CRD_AV])
         body.setStyle(TableStyle([
             ("TOPPADDING",    (0,0),(-1,-1), 0),
@@ -1301,9 +1292,7 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        # Card: row0=accent (no pad), row1=body (CP pad)
-        # accent colWidths=[CRD_INN=129] with zero pad → available=129 ✓
-        # body colWidths=[CRD_AV=113], cell pad CP=8 → available=CRD_INN-CP-CP=113 ✓
+        # accent row: zero pad, body row: CP pad → available=CRD_INN-CP-CP=95=CRD_AV ✓
         card = Table([[accent],[body]], colWidths=[CRD_INN])
         card.setStyle(TableStyle([
             ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
@@ -1327,17 +1316,17 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
     ]))
 
-    # ── Stats strip (3 stats across CW=540) ──────────────────────────────────
-    # Each col SW=180. Cell pad SL=SR=12 → inner=156 (S_INN)
-    SW, SL, SR = CW / 3, 12, 12  # 180, 12, 12
-    S_INN = SW - SL - SR          # 156
+    # ── Stats strip — 3 big stats, slate-800 card ─────────────────────────────
+    # SW=180, SL=SR=14 → S_INN=152
+    SW, SL, SR = CW / 3, 14, 14   # 180, 14, 14
+    S_INN = SW - SL - SR           # 152
 
     def stat_cell(big, label):
         t = Table([
-            [Paragraph(big,   ps(f"SBN_{big}",  fontName="Helvetica-Bold", fontSize=17,
-                                  textColor=CL["ind"], leading=19, alignment=TA_CENTER))],
-            [Paragraph(label, ps(f"SBL_{label}", fontSize=6.5, fontName="Helvetica-Bold",
-                                  textColor=CL["s400"], leading=8.5, alignment=TA_CENTER,
+            [Paragraph(big,   ps(f"SBN_{big}",  fontName="Helvetica-Bold", fontSize=20,
+                                  textColor=CL["ind"], leading=22, alignment=TA_CENTER))],
+            [Paragraph(label, ps(f"SBL_{label}", fontSize=7, fontName="Helvetica-Bold",
+                                  textColor=CL["s400"], leading=9, alignment=TA_CENTER,
                                   letterSpacing=0.8))],
         ], colWidths=[S_INN])
         t.setStyle(TableStyle([
@@ -1356,8 +1345,8 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     ]], colWidths=[SW]*3)
     stats_row.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
-        ("TOPPADDING",    (0,0),(-1,-1), 9),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 9),
+        ("TOPPADDING",    (0,0),(-1,-1), 12),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 12),
         ("LEFTPADDING",   (0,0),(0,0),   SL),
         ("RIGHTPADDING",  (0,0),(0,0),   SR),
         ("LEFTPADDING",   (1,0),(1,0),   SL),
@@ -1368,44 +1357,60 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("LINEBEFORE",    (1,0),(2,-1),  0.5, CL["s700"]),
     ]))
 
-    # ── Risk distribution bar ─────────────────────────────────────────────────
-    W_BAR, H_BAR = CW, 14
-    bar_d = Drawing(W_BAR, H_BAR)
-    if total > 0:
-        x = 0
-        for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]:
-            cnt = counts.get(rl, 0)
-            if cnt == 0: continue
-            sw = (cnt / total) * W_BAR
-            bar_d.add(Rect(x, 0, sw, H_BAR, fillColor=risk_c[rl], strokeColor=None))
-            if sw > 20:
-                bar_d.add(String(x + sw/2, H_BAR/2 - 3.5, str(cnt),
-                                 fontSize=7, fontName="Helvetica-Bold",
-                                 fillColor=colors.white, textAnchor="middle"))
-            x += sw
+    # ── Narrative block — executive summary text ──────────────────────────────
+    # Full width, LEFTPAD=RIGHTPAD=14 → text available = CW-28 = 512pt
+    _NL = _NR = 14
+    _N_AV = CW - _NL - _NR   # 512
 
-    leg_items = [
-        Paragraph(
-            f"<font color='{RISK_COLORS[rl]}'>■</font>"
-            f" <font color='#94a3b8'>{rl} ({counts[rl]})</font>",
-            ps(f"L_{rl}", fontSize=6.5, leading=9),
-        )
-        for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]
-    ]
-    legend = Table([leg_items], colWidths=[CW/4]*4)
-    legend.setStyle(TableStyle([
-        ("TOPPADDING",    (0,0),(-1,-1), 3),
+    risk_parts = []
+    if counts["CRITICAL"]: risk_parts.append(f"{counts['CRITICAL']} critical")
+    if counts["HIGH"]:      risk_parts.append(f"{counts['HIGH']} high-risk")
+    risk_str = " and ".join(risk_parts) if risk_parts else "no critical or high-risk"
+    top_id   = urgent[0].get("asset_id","") if urgent else ""
+    top_prob = _fmt_prob(urgent[0].get("failure_probability")) if urgent else ""
+    narrative_txt = (
+        f"{org_name} · Fleet of {total} assets monitored with an average failure "
+        f"probability of {prob_str}. Currently {risk_str} asset{'s' if len(urgent)!=1 else ''} "
+        f"requiring attention"
+        + (f" — highest risk: {top_id} at {top_prob} failure probability" if top_id else "")
+        + f". {pm_pending} preventive maintenance work order"
+        + ("s are" if pm_pending != 1 else " is")
+        + " pending scheduling."
+    )
+    narr_p = Paragraph(narrative_txt,
+                       ps("Narr", fontSize=8.5, textColor=CL["s300"], leading=13))
+    narr_inner = Table([[narr_p]], colWidths=[_N_AV])
+    narr_inner.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
         ("BOTTOMPADDING", (0,0),(-1,-1), 0),
-        ("LEFTPADDING",   (0,0),(-1,-1), 4),
+        ("LEFTPADDING",   (0,0),(-1,-1), 0),
         ("RIGHTPADDING",  (0,0),(-1,-1), 0),
     ]))
+    narr_block = Table([[narr_inner]], colWidths=[CW])
+    narr_block.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+        ("TOPPADDING",    (0,0),(-1,-1), 12),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 12),
+        ("LEFTPADDING",   (0,0),(-1,-1), _NL),
+        ("RIGHTPADDING",  (0,0),(-1,-1), _NR),
+        ("LEFTBORDER",    (0,0),(0,-1),  3, CL["ind"]),
+    ]))
+    # Add indigo left border via canvas — use BOX approach with LINEBEFORE
+    narr_block.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+        ("TOPPADDING",    (0,0),(-1,-1), 12),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 12),
+        ("LEFTPADDING",   (0,0),(-1,-1), _NL),
+        ("RIGHTPADDING",  (0,0),(-1,-1), _NR),
+        ("LINEBEFORE",    (0,0),(0,-1),  3, CL["ind"]),
+    ]))
 
-    # ── LEFT COLUMN: Urgent Attention (LC=294) ────────────────────────────────
-    # Urgent table cols sum to LC=294: [82, 42, 40, 130]
-    _UCW = [82, 42, 40, LC - 82 - 42 - 40]   # [82, 42, 40, 130]
-    u_h = ps("UH", fontSize=6.5, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
-    u_c = ps("UC", fontSize=6.5, textColor=CL["s300"], leading=9)
-    u_d = ps("UD", fontSize=6.5, textColor=CL["s400"], leading=9)
+    # ── LEFT COLUMN: Urgent Attention (LC=292) ────────────────────────────────
+    # Cols sum to LC=292: [84, 44, 40, 124]
+    _UCW = [84, 44, 40, LC - 84 - 44 - 40]   # [84, 44, 40, 124]
+    u_h = ps("UH", fontSize=7, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
+    u_c = ps("UC", fontSize=7, textColor=CL["s300"], leading=9)
+    u_d = ps("UD", fontSize=7, textColor=CL["s400"], leading=9)
 
     u_rows = [[Paragraph(h, u_h) for h in ["ASSET ID","RISK","FAIL %","RECOMMENDATION"]]]
     for p in urgent:
@@ -1413,9 +1418,9 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         rec = (p.get("recommendation") or "").strip()
         u_rows.append([
             Paragraph(p.get("asset_id",""),
-                      ps(f"UA_{p.get('asset_id','')[:6]}", fontSize=6.5,
+                      ps(f"UA_{p.get('asset_id','')[:6]}", fontSize=7,
                          fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)),
-            Paragraph(rl, ps(f"UR_{rl}", fontSize=6.5, fontName="Helvetica-Bold",
+            Paragraph(rl, ps(f"UR_{rl}", fontSize=7, fontName="Helvetica-Bold",
                               textColor=risk_c[rl], leading=9)),
             Paragraph(_fmt_prob(p.get("failure_probability")), u_d),
             Paragraph(rec[:55] + ("…" if len(rec) > 55 else ""), u_c),
@@ -1427,8 +1432,8 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     urg_tbl.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,0),  CL["ind"]),
         ("ROWBACKGROUNDS",(0,1),(-1,-1), [CL["card"], CL["card2"]]),
-        ("TOPPADDING",    (0,0),(-1,-1), 4),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
+        ("TOPPADDING",    (0,0),(-1,-1), 6),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 6),
         ("LEFTPADDING",   (0,0),(-1,-1), 5),
         ("RIGHTPADDING",  (0,0),(-1,-1), 5),
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
@@ -1438,7 +1443,7 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
 
     left_col = Table([
         [sec_head("Urgent Attention", LC)],
-        [Spacer(1, 5)],
+        [Spacer(1, 6)],
         [urg_tbl],
     ], colWidths=[LC])
     left_col.setStyle(TableStyle([
@@ -1449,11 +1454,11 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
     ]))
 
-    # ── RIGHT COLUMN: PM Recs + Key Insights (RC=246, inner RI=236) ──────────
-    # PM table cols sum to RI=236: [82, 75, 79]
-    _PCW = [82, 75, RI - 82 - 75]   # [82, 75, 79]
-    p_h = ps("PH", fontSize=6.5, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
-    p_c = ps("PC", fontSize=6.5, textColor=CL["s300"], leading=9)
+    # ── RIGHT COLUMN: PM Recs + Key Insights (RC=248, inner RI=238) ──────────
+    # PM cols sum to RI=238: [84, 76, 78]
+    _PCW = [84, 76, RI - 84 - 76]   # [84, 76, 78]
+    p_h = ps("PH", fontSize=7, fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)
+    p_c = ps("PC", fontSize=7, textColor=CL["s300"], leading=9)
 
     pm_tbl_rows = [[Paragraph(h, p_h) for h in ["ASSET","SCHEDULE","STATUS"]]]
     for p in pms:
@@ -1465,10 +1470,10 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
                  risk_c["MEDIUM"] if status == "Pending" else CL["s400"]
         pm_tbl_rows.append([
             Paragraph(p.get("asset_id",""),
-                      ps(f"PA_{p.get('asset_id','')[:6]}", fontSize=6.5,
+                      ps(f"PA_{p.get('asset_id','')[:6]}", fontSize=7,
                          fontName="Helvetica-Bold", textColor=CL["wh"], leading=9)),
             Paragraph(freq, p_c),
-            Paragraph(status, ps(f"PS_{status}", fontSize=6.5, fontName="Helvetica-Bold",
+            Paragraph(status, ps(f"PS_{status}", fontSize=7, fontName="Helvetica-Bold",
                                   textColor=sc, leading=9)),
         ])
     if not pms:
@@ -1478,8 +1483,8 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     pm_tbl.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,0),  CL["ind"]),
         ("ROWBACKGROUNDS",(0,1),(-1,-1), [CL["card"], CL["card2"]]),
-        ("TOPPADDING",    (0,0),(-1,-1), 4),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 4),
+        ("TOPPADDING",    (0,0),(-1,-1), 6),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 6),
         ("LEFTPADDING",   (0,0),(-1,-1), 5),
         ("RIGHTPADDING",  (0,0),(-1,-1), 5),
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
@@ -1487,11 +1492,11 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("LINEBELOW",     (0,1),(-1,-1), 0.3, CL["s700"]),
     ]))
 
-    # Insight rows — dot + text, cols sum to RI=236: [10, 226]
-    # Inside text cell: LEFTPAD=5, RIGHTPAD=4 → inner=226-9=217
-    _IDW, _ITW = 10, RI - 10       # 10, 226
-    _ITL, _ITR = 5, 4
-    _IT_INN    = _ITW - _ITL - _ITR  # 217
+    # Insight rows — impact dot + title/desc
+    # Cols sum to RI=238: [12, 226]. Text cell: LEFTPAD=6, RIGHTPAD=4 → inner=216
+    _IDW, _ITW = 12, RI - 12      # 12, 226
+    _ITL, _ITR = 6, 4
+    _IT_INN    = _ITW - _ITL - _ITR  # 216
 
     ins_rows = []
     for item in ins:
@@ -1499,14 +1504,13 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ic     = impact_c.get(impact, CL["s500"])
         title  = item.get("title","")
         desc   = (item.get("description") or "").strip()
-        short  = desc[:75] + ("…" if len(desc) > 75 else "")
-        dot_p  = Paragraph("●", ps(f"IDot_{title[:5]}", fontSize=8, textColor=ic, leading=10))
+        short  = desc[:90] + ("…" if len(desc) > 90 else "")
+        dot_p  = Paragraph("●", ps(f"IDot_{title[:5]}", fontSize=9, textColor=ic, leading=11))
         body_p = Paragraph(
-            f"<b><font color='#ffffff'>{title[:45]}</font></b><br/>"
+            f"<b><font color='#ffffff'>{title[:50]}</font></b><br/>"
             f"<font color='#94a3b8'>{short}</font>",
-            ps(f"IB_{title[:5]}", fontSize=6.5, leading=9),
+            ps(f"IB_{title[:5]}", fontSize=7, leading=10),
         )
-        # inner text table: colWidths=[_IT_INN=217]
         inner_t = Table([[body_p]], colWidths=[_IT_INN])
         inner_t.setStyle(TableStyle([
             ("TOPPADDING",    (0,0),(-1,-1), 0),
@@ -1514,18 +1518,18 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
             ("LEFTPADDING",   (0,0),(-1,-1), 0),
             ("RIGHTPADDING",  (0,0),(-1,-1), 0),
         ]))
-        # Row table: colWidths=[_IDW=10, _ITW=226], sum=236=RI ✓
-        # dot cell: zero pad → available=10 ✓
-        # text cell: LEFTPAD=_ITL=5, RIGHTPAD=_ITR=4 → available=226-9=217=_IT_INN ✓
+        # colWidths=[_IDW=12, _ITW=226] sum=238=RI ✓
+        # dot: zero pad → available=12 ✓
+        # text: LEFTPAD=_ITL=6, RIGHTPAD=_ITR=4 → available=226-10=216=_IT_INN ✓
         row_t = Table([[dot_p, inner_t]], colWidths=[_IDW, _ITW])
         row_t.setStyle(TableStyle([
             ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
-            ("TOPPADDING",    (0,0),(0,0),   5),
-            ("BOTTOMPADDING", (0,0),(0,0),   5),
-            ("LEFTPADDING",   (0,0),(0,0),   4),
+            ("TOPPADDING",    (0,0),(0,0),   8),
+            ("BOTTOMPADDING", (0,0),(0,0),   8),
+            ("LEFTPADDING",   (0,0),(0,0),   5),
             ("RIGHTPADDING",  (0,0),(0,0),   2),
-            ("TOPPADDING",    (1,0),(1,0),   5),
-            ("BOTTOMPADDING", (1,0),(1,0),   5),
+            ("TOPPADDING",    (1,0),(1,0),   8),
+            ("BOTTOMPADDING", (1,0),(1,0),   8),
             ("LEFTPADDING",   (1,0),(1,0),   _ITL),
             ("RIGHTPADDING",  (1,0),(1,0),   _ITR),
             ("VALIGN",        (0,0),(-1,-1), "TOP"),
@@ -1533,20 +1537,19 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ]))
         ins_rows.append(row_t)
 
-    # Right col assembly — colWidths=[RI=236]
     right_rows = [
         [sec_head("PM Recommendations", RI)],
-        [Spacer(1, 5)],
+        [Spacer(1, 6)],
         [pm_tbl],
-        [Spacer(1, 10)],
+        [Spacer(1, 12)],
         [sec_head("Key Insights", RI)],
-        [Spacer(1, 5)],
+        [Spacer(1, 6)],
     ]
     for ir in ins_rows:
         right_rows.extend([[ir],[Spacer(1,3)]])
     if not ins:
         right_rows.append([Paragraph("No insights available.",
-                                     ps("SNone", fontSize=7.5, textColor=CL["s400"]))])
+                                     ps("SNone", fontSize=8, textColor=CL["s400"]))])
 
     right_col = Table(right_rows, colWidths=[RI])
     right_col.setStyle(TableStyle([
@@ -1557,9 +1560,9 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
     ]))
 
-    # ── Two-column wrapper — zero padding so widths are exact ─────────────────
-    # Left cell: available=LC=294 (zero pad) ✓
-    # Right cell: LEFTPADDING=10, so available=RC-10=236=RI ✓
+    # ── Two-column wrapper ────────────────────────────────────────────────────
+    # Left: zero pad → available=LC=292 ✓
+    # Right: LEFTPADDING=10 → available=RC-10=238=RI ✓
     two_col = Table([[left_col, right_col]], colWidths=[LC, RC])
     two_col.setStyle(TableStyle([
         ("TOPPADDING",    (0,0),(-1,-1), 0),
@@ -1574,6 +1577,37 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("LINEBEFORE",    (1,0),(1,-1),  0.5, CL["s700"]),
     ]))
 
+    # ── Facility strip ────────────────────────────────────────────────────────
+    # Full-width bottom card anchoring the page
+    # LEFTPAD=RIGHTPAD=14 → inner=512
+    _FL = _FR = 14
+    _F_INN = CW - _FL - _FR  # 512
+    gen_date = datetime.utcnow().strftime("%B %d, %Y")
+    fac_cells = [
+        Paragraph(f"<b><font color='#ffffff'>{org_name}</font></b>",
+                  ps("FC1", fontSize=7.5, leading=9)),
+        Paragraph(f"<font color='#475569'>Period</font>  <font color='#94a3b8'>{period_label}</font>",
+                  ps("FC2", fontSize=7.5, leading=9, alignment=TA_CENTER)),
+        Paragraph(f"<font color='#475569'>Report Date</font>  <font color='#94a3b8'>{gen_date}</font>",
+                  ps("FC3", fontSize=7.5, leading=9, alignment=TA_RIGHT)),
+    ]
+    # Each cell in the facility strip: SW=180, padded SL=SR=14 → inner=152
+    # But we're placing 3 cells with width CW/3=180 each, all inner text fits in 152pt
+    fac_strip = Table([fac_cells], colWidths=[SW]*3)
+    fac_strip.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), colors.HexColor("#172030")),
+        ("TOPPADDING",    (0,0),(-1,-1), 9),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 9),
+        ("LEFTPADDING",   (0,0),(0,0),   _FL),
+        ("RIGHTPADDING",  (0,0),(0,0),   _FR),
+        ("LEFTPADDING",   (1,0),(1,0),   _FL),
+        ("RIGHTPADDING",  (1,0),(1,0),   _FR),
+        ("LEFTPADDING",   (2,0),(2,0),   _FL),
+        ("RIGHTPADDING",  (2,0),(2,0),   _FR),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("LINEABOVE",     (0,0),(-1,0),  0.5, CL["s700"]),
+    ]))
+
     # ── Story ─────────────────────────────────────────────────────────────────
     gen_time = datetime.utcnow().strftime("%B %d, %Y  ·  %H:%M UTC")
     story = [
@@ -1581,15 +1615,16 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
             f"<font color='#64748b'>Generated {gen_time}  ·  Period: {period_label}</font>",
             ps("Meta", fontSize=7.5, leading=10),
         ),
-        Spacer(1, 8),
+        Spacer(1, 10),
         kpi_grid,
-        Spacer(1, 6),
+        Spacer(1, 10),
         stats_row,
-        Spacer(1, 6),
-        bar_d,
-        legend,
-        Spacer(1, 12),
+        Spacer(1, 10),
+        narr_block,
+        Spacer(1, 14),
         two_col,
+        Spacer(1, 12),
+        fac_strip,
     ]
 
     buf = io.BytesIO()
