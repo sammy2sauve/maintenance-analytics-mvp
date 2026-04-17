@@ -47,6 +47,6 @@ npm run dev
 
 ## Roadmap
 
-See [LAUNCH_ROADMAP.md](./LAUNCH_ROADMAP.md) for the full path to commercial launch.
+See [LAUNCH_ROADMAP.md](./LAUNCH_ROADMAP.md) and [truesignal-launch-plan.md](./truesignal-launch-plan.md) for the full path to commercial launch.
 
 Next up: logo, asset type encoding, auth, MaintNext live integration, Postgres migration, deployment.
