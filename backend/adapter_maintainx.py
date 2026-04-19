@@ -9,16 +9,16 @@ Called by the sync worker automatically on a schedule.
 """
 
 import json
-import sqlite3
 import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
-from pathlib import Path
+
+import psycopg2
 
 from .encryption import decrypt
+from .neon import get_conn
 
-DB_PATH = Path(__file__).parent.parent / "data" / "db" / "truesignal.db"
 BASE_URL = "https://api.getmaintainx.com/v1"
 
 # MaintainX -> internal field mappings
@@ -186,61 +186,45 @@ def _parse_date(value):
 
 # ── DB upsert ──────────────────────────────────────────────────────────────────
 
-def upsert_work_orders(rows):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS work_orders (
-            work_order_id        INTEGER PRIMARY KEY,
-            asset_id             TEXT,
-            site                 TEXT,
-            type                 TEXT,
-            status               TEXT,
-            technician           TEXT,
-            creation_date        DATE,
-            scheduled_start      DATE,
-            start_date           DATE,
-            completion_date      DATE,
-            labor_hours_scheduled REAL,
-            labor_hours_actual   REAL,
-            downtime_hours       REAL,
-            reactive_followup    INTEGER,
-            priority             TEXT,
-            due_date             DATE
-        )
-    """)
+def upsert_work_orders(rows, location_id=1):
+    conn = get_conn()
+    cur = conn.cursor()
     inserted = updated = 0
     for row in rows:
-        existing = conn.execute(
-            "SELECT work_order_id FROM work_orders WHERE work_order_id=?",
-            (row["work_order_id"],)
-        ).fetchone()
-        if existing:
-            conn.execute("""
-                UPDATE work_orders SET
-                    asset_id=?, site=?, type=?, status=?, technician=?,
-                    creation_date=?, scheduled_start=?, start_date=?,
-                    completion_date=?, labor_hours_scheduled=?, labor_hours_actual=?,
-                    downtime_hours=?, reactive_followup=?, priority=?, due_date=?
-                WHERE work_order_id=?
-            """, (
-                row["asset_id"], row["site"], row["type"], row["status"], row["technician"],
-                row["creation_date"], row["scheduled_start"], row["start_date"],
-                row["completion_date"], row["labor_hours_scheduled"], row["labor_hours_actual"],
-                row["downtime_hours"], row["reactive_followup"], row["priority"], row["due_date"],
-                row["work_order_id"]
-            ))
-            updated += 1
-        else:
-            conn.execute("""
-                INSERT INTO work_orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
-                row["work_order_id"], row["asset_id"], row["site"], row["type"],
-                row["status"], row["technician"], row["creation_date"], row["scheduled_start"],
-                row["start_date"], row["completion_date"], row["labor_hours_scheduled"],
-                row["labor_hours_actual"], row["downtime_hours"], row["reactive_followup"],
-                row["priority"], row["due_date"], 1
-            ))
+        cur.execute("""
+            INSERT INTO work_orders (
+                work_order_id, asset_id, site, type, status, technician,
+                creation_date, scheduled_start, start_date, completion_date,
+                labor_hours_scheduled, labor_hours_actual, downtime_hours,
+                reactive_followup, priority, due_date, location_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (work_order_id) DO UPDATE SET
+                asset_id              = EXCLUDED.asset_id,
+                site                  = EXCLUDED.site,
+                type                  = EXCLUDED.type,
+                status                = EXCLUDED.status,
+                technician            = EXCLUDED.technician,
+                creation_date         = EXCLUDED.creation_date,
+                scheduled_start       = EXCLUDED.scheduled_start,
+                start_date            = EXCLUDED.start_date,
+                completion_date       = EXCLUDED.completion_date,
+                labor_hours_scheduled = EXCLUDED.labor_hours_scheduled,
+                labor_hours_actual    = EXCLUDED.labor_hours_actual,
+                downtime_hours        = EXCLUDED.downtime_hours,
+                reactive_followup     = EXCLUDED.reactive_followup,
+                priority              = EXCLUDED.priority,
+                due_date              = EXCLUDED.due_date
+        """, (
+            row["work_order_id"], row["asset_id"], row["site"], row["type"],
+            row["status"], row["technician"], row["creation_date"], row["scheduled_start"],
+            row["start_date"], row["completion_date"], row["labor_hours_scheduled"],
+            row["labor_hours_actual"], row["downtime_hours"], row["reactive_followup"],
+            row["priority"], row["due_date"], location_id,
+        ))
+        if cur.rowcount == 1:
             inserted += 1
+        else:
+            updated += 1
     conn.commit()
     conn.close()
     return inserted, updated
@@ -249,20 +233,22 @@ def upsert_work_orders(rows):
 # ── Main sync ──────────────────────────────────────────────────────────────────
 
 def get_api_key(location_id=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_conn()
+    cur = conn.cursor()
     if location_id is not None:
-        row = conn.execute(
-            "SELECT mx_api_key_enc, mx_api_key_salt, mx_api_key_nonce FROM locations WHERE id = ?",
+        cur.execute(
+            "SELECT mx_api_key_enc, mx_api_key_salt, mx_api_key_nonce FROM locations WHERE id = %s",
             (location_id,)
-        ).fetchone()
+        )
     else:
-        row = conn.execute(
+        cur.execute(
             "SELECT mx_api_key_enc, mx_api_key_salt, mx_api_key_nonce FROM locations WHERE mx_api_key_enc IS NOT NULL LIMIT 1"
-        ).fetchone()
+        )
+    row = cur.fetchone()
     conn.close()
-    if not row or not row[0]:
+    if not row or not row['mx_api_key_enc']:
         raise SystemExit("No MaintainX API key stored. Connect in Settings first.")
-    return decrypt(row[0], row[1], row[2])
+    return decrypt(row['mx_api_key_enc'], row['mx_api_key_salt'], row['mx_api_key_nonce'])
 
 
 def mark_implemented_suggestions(location_id=1):
@@ -271,23 +257,24 @@ def mark_implemented_suggestions(location_id=1):
     a completed work order in the last 30 days.
     Called after the pipeline so it operates on the freshest suggestions.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.execute(
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
         """
         UPDATE pm_optimization_suggestions
         SET status = 'implemented'
         WHERE status = 'pending'
-          AND location_id = ?
+          AND location_id = %s
           AND asset_id IN (
               SELECT DISTINCT asset_id FROM work_orders
               WHERE status = 'Completed'
-                AND completion_date >= date('now', '-30 days')
-                AND location_id = ?
+                AND completion_date >= CURRENT_DATE - INTERVAL '30 days'
+                AND location_id = %s
           )
         """,
         (location_id, location_id),
     )
-    marked = cursor.rowcount
+    marked = cur.rowcount
     conn.commit()
     conn.close()
     return marked

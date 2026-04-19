@@ -7,6 +7,9 @@ from the SQLite database.
 Run with: uvicorn backend.api:app --reload
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
