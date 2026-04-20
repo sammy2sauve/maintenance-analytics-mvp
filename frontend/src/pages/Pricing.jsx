@@ -57,7 +57,8 @@ export default function Pricing() {
   const navigate = useNavigate();
 
   const price = annual ? PRO_ANNUAL : PRO_MONTHLY;
-  const savings = annual ? (PRO_MONTHLY * 12 - PRO_ANNUAL * 12) : 0;
+  const annualTotal = PRO_ANNUAL * 12;
+  const savings = annual ? (PRO_MONTHLY * 12 - annualTotal) : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -87,9 +88,9 @@ export default function Pricing() {
           <span className={`text-sm font-medium ${!annual ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
           <button
             onClick={() => setAnnual(a => !a)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${annual ? 'bg-indigo-600' : 'bg-slate-700'}`}
+            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${annual ? 'bg-indigo-600' : 'bg-slate-700'}`}
           >
-            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${annual ? 'translate-x-7' : 'translate-x-1'}`} />
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${annual ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
           <span className={`text-sm font-medium ${annual ? 'text-white' : 'text-slate-500'}`}>
             Annual
@@ -126,10 +127,10 @@ export default function Pricing() {
               <span className="text-slate-400 text-sm ml-1">/mo</span>
             </div>
             {annual && (
-              <p className="text-xs text-emerald-400 mb-1">Billed ${PRO_ANNUAL * 12}/yr — save ${savings}</p>
+              <p className="text-xs text-emerald-400 mb-1">Billed ${annualTotal}/yr — save ${savings}</p>
             )}
             <p className="text-xs text-slate-500 mb-8">
-              {annual ? `$${PRO_ANNUAL * 12} billed annually` : 'Billed monthly · cancel anytime'}
+              {annual ? `$${annualTotal} billed annually` : 'Billed monthly · cancel anytime'}
             </p>
 
             <Link
