@@ -85,10 +85,12 @@ def _get(url: str, api_key: str, retries: int = 3):
                 print(f"  Rate limited — waiting {wait}s...")
                 time.sleep(wait)
             elif e.code == 401:
-                raise SystemExit("FaciliWorks: 401 Unauthorized. Check your API key.")
+                raise RuntimeError("Invalid API key — FaciliWorks returned 401 Unauthorized.")
             else:
                 body = e.read().decode(errors="replace")[:200]
                 raise RuntimeError(f"FaciliWorks HTTP {e.code}: {body}")
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Could not reach FaciliWorks at that URL: {e.reason}")
     return None
 
 

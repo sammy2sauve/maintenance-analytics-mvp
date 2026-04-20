@@ -331,7 +331,10 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
         const r = await api.post('/settings/faciliworks-sync', null, { params: { location_id: locationId }, timeout: 120000 });
         setSyncResult(r.data);
       } catch (err) {
-        setError(err.response?.data?.detail || 'Connected, but initial sync failed. Try syncing manually.');
+        // Backend deletes the key on sync failure — reflect that in UI
+        setConnected(false);
+        await refreshLocation();
+        setError(err.response?.data?.detail || 'Sync failed. Check your URL and API key.');
       } finally {
         setSyncing(false);
       }

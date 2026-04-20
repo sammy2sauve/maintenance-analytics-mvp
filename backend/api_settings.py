@@ -240,7 +240,16 @@ def trigger_fw_sync(
     _require_not_viewer(user_id, loc_id)
     if not location_has_api_key(loc_id):
         raise HTTPException(400, "No FaciliWorks credentials stored for this location")
-    inserted, updated = fw_sync(location_id=loc_id)
+    try:
+        inserted, updated = fw_sync(location_id=loc_id)
+    except RuntimeError as e:
+        # Bad credentials or unreachable URL — remove the key so the user
+        # isn't left in a "connected but broken" state.
+        delete_location_api_key(loc_id)
+        raise HTTPException(422, f"Sync failed: {e}. Your credentials have been cleared — please re-enter them.")
+    except Exception as e:
+        delete_location_api_key(loc_id)
+        raise HTTPException(422, f"Sync failed: {e}. Your credentials have been cleared — please re-enter them.")
     pipeline_result = run_pipeline(verbose=False, location_id=loc_id)
     implemented = fw_mark_implemented(location_id=loc_id)
     emails_sent = check_and_fire_alerts(loc_id)
