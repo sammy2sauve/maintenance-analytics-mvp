@@ -188,7 +188,7 @@ def push_wo_to_faciliworks(body: PushWORequest, user_id: int = Depends(_current_
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE pm_optimization_suggestions SET status = 'accepted' WHERE id = %s",
+        "UPDATE pm_optimization_suggestions SET status = 'implemented' WHERE id = %s",
         (body.suggestion_id,),
     )
     conn.commit()

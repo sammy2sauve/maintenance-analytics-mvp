@@ -47,11 +47,11 @@ function StatCard({ label, value, color }) {
 }
 
 function PMPlannerSkeleton() {
-  const statColors = ['#fbbf24', '#34d399', '#6366f1', '#64748b'];
+  const statColors = ['#fbbf24', '#6366f1', '#64748b'];
   return (
     <div className="w-full h-full px-4 py-4 space-y-4 overflow-hidden">
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {statColors.map((c, i) => (
           <div key={i} className="bg-slate-800 rounded-xl h-20 border border-slate-700/50 p-4">
             <div className="w-1/2 h-2 bg-slate-700 rounded mb-2" />
@@ -183,7 +183,7 @@ export default function PMPlanner() {
     try {
       const res = await getSettings.pushToFaciliWorks(id, locationId);
       const woId = res.data?.wo_id;
-      setSuggestions(prev => prev.map(s => s.id === id ? { ...s, status: 'accepted' } : s));
+      setSuggestions(prev => prev.map(s => s.id === id ? { ...s, status: 'implemented' } : s));
       setPushResult({ woId });
       setTimeout(() => setPushResult(null), 5000);
     } catch (err) {
@@ -213,9 +213,8 @@ export default function PMPlanner() {
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <StatCard label="Pending review" value={counts.pending}     color="amber"   />
-          <StatCard label="Accepted"        value={counts.accepted}    color="emerald" />
           <StatCard label="Implemented"     value={counts.implemented} color="indigo"  />
           <StatCard label="Rejected"        value={counts.rejected}    color="slate"   />
         </div>
@@ -223,7 +222,7 @@ export default function PMPlanner() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-3 flex-shrink-0">
-        {['all', 'pending', 'accepted', 'rejected', 'implemented'].map(f => (
+        {['all', 'pending', 'implemented', 'rejected'].map(f => (
           <button
             key={f}
             onClick={() => setStatusFilter(f)}
@@ -349,52 +348,40 @@ export default function PMPlanner() {
 
               {/* Actions */}
               <div className="mt-auto space-y-2 pt-2 border-t border-slate-700/40">
-                {selectedItem.status !== 'accepted' && selectedItem.status !== 'implemented' && (
-                  <button
-                    onClick={() => updateStatus(selectedItem.id, 'accepted')}
-                    disabled={updating}
-                    className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {updating ? 'Saving…' : 'Accept'}
-                  </button>
-                )}
-                {selectedItem.status !== 'rejected' && selectedItem.status !== 'implemented' && (
-                  <button
-                    onClick={() => updateStatus(selectedItem.id, 'rejected')}
-                    disabled={updating}
-                    className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                )}
-                {selectedItem.status === 'rejected' || selectedItem.status === 'accepted' ? (
-                  <button
-                    onClick={() => updateStatus(selectedItem.id, 'pending')}
-                    disabled={updating}
-                    className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-500 text-xs rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Reset to pending
-                  </button>
-                ) : null}
-                {hasApiKey && selectedItem.status !== 'implemented' && (
-                  <button
-                    onClick={() => pushToFaciliWorks(selectedItem.id)}
-                    disabled={pushing}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                  >
+                {selectedItem.status === 'implemented' ? (
+                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-900/30 border border-indigo-500/20 text-indigo-400 text-xs font-medium rounded-lg">
                     <Zap className="w-3 h-3" />
-                    {pushing ? 'Sending to FaciliWorks…' : 'Generate in FaciliWorks'}
-                  </button>
-                )}
-                {!hasApiKey && (
-                  <button
-                    disabled
-                    title="Connect FaciliWorks in Settings to enable"
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/30 text-slate-600 text-xs rounded-lg cursor-not-allowed"
-                  >
-                    <Zap className="w-3 h-3" />
-                    Generate in FaciliWorks
-                  </button>
+                    Implemented in FaciliWorks
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => pushToFaciliWorks(selectedItem.id)}
+                      disabled={pushing}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Zap className="w-3 h-3" />
+                      {pushing ? 'Sending to FaciliWorks…' : 'Implement in FaciliWorks'}
+                    </button>
+                    {selectedItem.status !== 'rejected' && (
+                      <button
+                        onClick={() => updateStatus(selectedItem.id, 'rejected')}
+                        disabled={updating}
+                        className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    )}
+                    {selectedItem.status === 'rejected' && (
+                      <button
+                        onClick={() => updateStatus(selectedItem.id, 'pending')}
+                        disabled={updating}
+                        className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-500 text-xs rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        Reset to pending
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 

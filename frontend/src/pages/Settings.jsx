@@ -293,7 +293,7 @@ function AlertsSection({ locationId }) {
   );
 }
 
-function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
+function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
   const [connected, setConnected]   = useState(false);
   const [loading, setLoading]       = useState(true);
   const [baseUrl, setBaseUrl]       = useState('');
@@ -324,6 +324,17 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
       });
       setConnected(true);
       setBaseUrl(''); setApiKey('');
+      await refreshLocation();
+      // Auto-sync immediately after connecting
+      setSyncing(true);
+      try {
+        const r = await api.post('/settings/faciliworks-sync', null, { params: { location_id: locationId }, timeout: 120000 });
+        setSyncResult(r.data);
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Connected, but initial sync failed. Try syncing manually.');
+      } finally {
+        setSyncing(false);
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to save credentials.');
     } finally {
@@ -344,7 +355,7 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
   const syncNow = async () => {
     setSyncing(true); setError(''); setSyncResult(null);
     try {
-      const r = await api.post('/settings/faciliworks-sync', null, { params: { location_id: locationId } });
+      const r = await api.post('/settings/faciliworks-sync', null, { params: { location_id: locationId }, timeout: 120000 });
       setSyncResult(r.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Sync failed.');
@@ -429,11 +440,11 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
           </div>
           <button
             onClick={connect}
-            disabled={saving}
+            disabled={saving || syncing}
             className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             <Link className="w-3.5 h-3.5" />
-            {saving ? 'Connecting…' : 'Connect FaciliWorks'}
+            {saving ? 'Connecting…' : syncing ? 'Syncing data…' : 'Connect FaciliWorks'}
           </button>
         </div>
       ) : (
@@ -446,7 +457,7 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
 }
 
 export default function Settings() {
-  const { user, role, isOwnerOrAdmin, locationId } = useAuth();
+  const { user, role, isOwnerOrAdmin, locationId, refreshLocation } = useAuth();
 
   return (
     <div className="w-full h-full px-6 py-6 overflow-y-auto">
@@ -459,7 +470,7 @@ export default function Settings() {
         <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-6">
 
           {/* FaciliWorks connection */}
-          <FaciliWorksSection locationId={locationId} isOwnerOrAdmin={isOwnerOrAdmin} />
+          <FaciliWorksSection locationId={locationId} isOwnerOrAdmin={isOwnerOrAdmin} refreshLocation={refreshLocation} />
 
           {/* Divider into Team */}
           {isOwnerOrAdmin && user && (

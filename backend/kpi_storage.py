@@ -171,6 +171,7 @@ def retrieve_daily_kpis(
 ) -> pd.DataFrame:
     try:
         conn = get_conn()
+        cur = conn.cursor()
         query = "SELECT * FROM daily_kpis WHERE 1=1"
         params = []
         if period_date:
@@ -180,9 +181,11 @@ def retrieve_daily_kpis(
             query += " AND kpi_name = %s"
             params.append(kpi_name)
         query += " ORDER BY period_date DESC, kpi_name"
-        df = pd.read_sql_query(query, conn, params=params)
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
         conn.close()
-        return df
+        return pd.DataFrame(rows, columns=cols)
     except psycopg2.Error as e:
         raise KPIStorageError(f"Failed to retrieve daily KPIs: {str(e)}")
 
@@ -193,6 +196,7 @@ def retrieve_weekly_kpis(
 ) -> pd.DataFrame:
     try:
         conn = get_conn()
+        cur = conn.cursor()
         query = "SELECT * FROM weekly_kpis WHERE 1=1"
         params = []
         if period_week:
@@ -202,9 +206,11 @@ def retrieve_weekly_kpis(
             query += " AND kpi_name = %s"
             params.append(kpi_name)
         query += " ORDER BY period_week DESC, kpi_name"
-        df = pd.read_sql_query(query, conn, params=params)
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
         conn.close()
-        return df
+        return pd.DataFrame(rows, columns=cols)
     except psycopg2.Error as e:
         raise KPIStorageError(f"Failed to retrieve weekly KPIs: {str(e)}")
 
@@ -215,6 +221,7 @@ def retrieve_monthly_kpis(
 ) -> pd.DataFrame:
     try:
         conn = get_conn()
+        cur = conn.cursor()
         query = "SELECT * FROM monthly_kpis WHERE 1=1"
         params = []
         if period_month:
@@ -224,9 +231,11 @@ def retrieve_monthly_kpis(
             query += " AND kpi_name = %s"
             params.append(kpi_name)
         query += " ORDER BY period_month DESC, kpi_name"
-        df = pd.read_sql_query(query, conn, params=params)
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
         conn.close()
-        return df
+        return pd.DataFrame(rows, columns=cols)
     except psycopg2.Error as e:
         raise KPIStorageError(f"Failed to retrieve monthly KPIs: {str(e)}")
 

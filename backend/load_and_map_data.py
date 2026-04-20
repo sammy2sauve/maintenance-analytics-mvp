@@ -37,8 +37,11 @@ def load_work_orders_from_db() -> pd.DataFrame:
             conn.close()
             raise DataLoadError("work_orders table not found in database. Run create_schema_neon first.")
 
-        df = pd.read_sql_query("SELECT * FROM work_orders", conn)
+        cur.execute("SELECT * FROM work_orders")
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
         conn.close()
+        df = pd.DataFrame(rows, columns=cols)
 
         if df.empty:
             raise DataLoadError("work_orders table is empty. Sync CMMS data first.")
