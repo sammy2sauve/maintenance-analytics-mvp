@@ -1,156 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Wrench, BarChart3, ClipboardList, CheckCircle2, TrendingUp, ChevronRight } from 'lucide-react';
-
-// ─── Slide: Overview ─────────────────────────────────────────────────────────
-// Matches: 4 gradient stat cards + 3-col (pie | gauge | KPI table) + insights
-
-function SlideOverview() {
-  // Stat cards — match StatCard gradient style exactly
-  const stats = [
-    { title: 'Open Work Orders', value: '47', subtitle: 'across 29 assets', color: 'blue',   Icon: ClipboardList },
-    { title: 'PM Compliance',    value: '73%', subtitle: 'last 30 days',    color: 'green',  Icon: CheckCircle2  },
-    { title: 'Reactive Rate',    value: '28%', subtitle: 'of all work orders',color: 'amber', Icon: Wrench        },
-    { title: 'Predictions',      value: '29',  subtitle: '2 critical alerts', color: 'indigo',Icon: TrendingUp    },
-  ];
-  const gradients = {
-    blue:   'from-blue-600 to-cyan-500',
-    indigo: 'from-indigo-600 to-violet-500',
-    green:  'from-emerald-600 to-teal-500',
-    amber:  'from-amber-500 to-orange-400',
-  };
-
-  // Mini gauge — half-circle dial, score = 41 (IMPROVING zone)
-  const score = 41;
-  const cx = 60, cy = 58, r = 44;
-  const needleAngle = 180 - (score / 100) * 180;
-  const toXY = (deg, radius) => ({
-    x: cx + radius * Math.cos((deg * Math.PI) / 180),
-    y: cy - radius * Math.sin((deg * Math.PI) / 180),
-  });
-  const arcD = (s, e, ir, or_) => {
-    const S = toXY(s, or_), E = toXY(e, or_), Si = toXY(s, ir), Ei = toXY(e, ir);
-    return `M${S.x} ${S.y} A${or_} ${or_} 0 0 0 ${E.x} ${E.y} L${Ei.x} ${Ei.y} A${ir} ${ir} 0 0 1 ${Si.x} ${Si.y}Z`;
-  };
-  const tip = toXY(needleAngle, r - 4);
-
-  // KPI rows
-  const kpis = [
-    { name: 'PM Completion Rate',   val: '0.73' },
-    { name: 'Mean Time to Repair',  val: '3.21' },
-    { name: 'Schedule Compliance',  val: '0.81' },
-    { name: 'Reactive Work Ratio',  val: '0.28' },
-    { name: 'Wrench Time',          val: '0.62' },
-  ];
-
-  // Insights
-  const insights = [
-    { title: 'Chiller #1 failure risk elevated', impact: 'HIGH' },
-    { title: 'AHU-003 reactive WO rate 3.2× baseline', impact: 'HIGH' },
-    { title: 'Boiler PM overdue — schedule missed', impact: 'MEDIUM' },
-    { title: 'VFD-003 frequency optimized, saving 12h/yr', impact: 'LOW' },
-  ];
-  const impactStyle = {
-    HIGH:   'bg-red-500/20 text-red-400',
-    MEDIUM: 'bg-yellow-500/20 text-yellow-400',
-    LOW:    'bg-blue-500/20 text-blue-400',
-  };
-
-  return (
-    <div className="flex flex-col gap-2.5 h-full">
-      <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Overview</p>
-
-      {/* 4 gradient stat cards */}
-      <div className="grid grid-cols-4 gap-2 flex-shrink-0">
-        {stats.map(({ title, value, subtitle, color, Icon }) => (
-          <div key={title} className={`bg-gradient-to-br ${gradients[color]} rounded-lg p-2.5`}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[8px] font-medium text-white/70 uppercase tracking-wide leading-tight">{title}</p>
-                <p className="text-lg font-bold text-white mt-0.5 leading-none">{value}</p>
-                <p className="text-[8px] text-white/60 mt-0.5">{subtitle}</p>
-              </div>
-              <div className="bg-white/20 p-1 rounded">
-                <Icon className="w-2.5 h-2.5 text-white" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 3-col: pie | gauge | KPI table */}
-      <div className="grid grid-cols-3 gap-2 flex-shrink-0">
-        {/* Risk pie — simplified colored arc segments */}
-        <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-1.5">Risk Distribution</p>
-          <svg viewBox="0 0 80 80" className="w-full" style={{ maxHeight: 56 }}>
-            {/* Simple donut — CRITICAL 7%, HIGH 31%, MEDIUM 24%, LOW 38% */}
-            {[
-              { color: '#f87171', d: 'M40,8 A32,32 0 0,1 57.2,13.4 L40,40Z' },
-              { color: '#fb923c', d: 'M57.2,13.4 A32,32 0 0,1 72,40 L40,40Z' },
-              { color: '#fbbf24', d: 'M72,40 A32,32 0 0,1 57.2,66.6 L40,40Z' },
-              { color: '#34d399', d: 'M57.2,66.6 A32,32 0 1,1 40,8 L40,40Z' },
-            ].map((s, i) => <path key={i} d={s.d} fill={s.color} opacity="0.85" />)}
-            <circle cx="40" cy="40" r="18" fill="#0f172a" />
-            <text x="40" y="40" textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize="6.5" fontWeight="600">29 assets</text>
-          </svg>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1">
-            {[['#f87171','CRITICAL','2'],['#fb923c','HIGH','9'],['#fbbf24','MEDIUM','7'],['#34d399','LOW','11']].map(([c,l,n]) => (
-              <div key={l} className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c }} />
-                <span className="text-[8px] text-slate-400">{l} <span className="text-white font-semibold">{n}</span></span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Maintenance health gauge */}
-        <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/20 border border-amber-700/50 rounded-xl p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-1">Maintenance Health</p>
-          <svg viewBox="0 0 120 66" className="w-full" style={{ maxHeight: 56 }}>
-            <path d={arcD(0, 180, 30, 44)} fill="#1e293b" />
-            <path d={arcD(108, 180, 31, 43)} fill="#ef4444" opacity="0.9" />
-            <path d={arcD(54, 108, 31, 43)} fill="#f59e0b" opacity="0.9" />
-            <path d={arcD(0, 54, 31, 43)} fill="#10b981" opacity="0.9" />
-            <line x1={cx} y1={cy} x2={tip.x} y2={tip.y} stroke="#000" strokeWidth="3" strokeLinecap="round" />
-            <line x1={cx} y1={cy} x2={tip.x} y2={tip.y} stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-            <circle cx={cx} cy={cy} r="5" fill="#1e293b" stroke="#000" strokeWidth="1.5" />
-            <circle cx={cx} cy={cy} r="3" fill="#f59e0b" />
-            <text x={cx} y={cy - 14} textAnchor="middle" fill="white" fontSize="13" fontWeight="700">{score}</text>
-            <text x={cx} y={cy - 4} textAnchor="middle" fill="#f59e0b" fontSize="5.5" fontWeight="600">IMPROVING</text>
-          </svg>
-          <p className="text-[8px] text-slate-500 text-center">S = 50 − 3C − H + PM</p>
-        </div>
-
-        {/* KPI table */}
-        <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-1.5">Key Metrics</p>
-          <div className="space-y-1">
-            {kpis.map(k => (
-              <div key={k.name} className="flex items-center justify-between border-b border-slate-700/30 pb-0.5">
-                <span className="text-[8px] text-slate-400 truncate mr-1">{k.name}</span>
-                <span className="text-[8px] text-indigo-300 font-medium flex-shrink-0">{k.val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Insights */}
-      <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl p-2.5 flex-1 min-h-0">
-        <p className="text-[9px] text-slate-400 font-semibold mb-1.5">Latest Insights <span className="text-slate-600">(6)</span></p>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          {insights.map(ins => (
-            <div key={ins.title} className="border-l-2 border-indigo-500 pl-2">
-              <p className="text-[9px] text-white font-medium leading-tight">{ins.title}</p>
-              <span className={`text-[8px] px-1 py-0.5 rounded ${impactStyle[ins.impact]}`}>{ins.impact}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+import { Zap, Wrench, BarChart3, ChevronRight } from 'lucide-react';
 
 // ─── Slide: Asset Health ──────────────────────────────────────────────────────
 // Matches: toolbar + 4 glowing SVG rings + main list + Act Now sidebar
@@ -359,9 +209,8 @@ function SlidePMPlanner() {
 // ─── Rotating preview wrapper ─────────────────────────────────────────────────
 
 const SLIDES = [
-  { id: 'overview', label: 'Overview',     component: SlideOverview    },
-  { id: 'assets',   label: 'Asset Health', component: SlideAssetHealth },
-  { id: 'pm',       label: 'PM Planner',   component: SlidePMPlanner   },
+  { id: 'assets', label: 'Asset Health', component: SlideAssetHealth },
+  { id: 'pm',     label: 'PM Planner',   component: SlidePMPlanner   },
 ];
 
 function AppPreview() {
@@ -405,11 +254,16 @@ function AppPreview() {
 
       {/* App frame */}
       <div className="flex-1 bg-slate-950 border border-slate-700/60 border-t-0 rounded-b-xl px-3 py-3 overflow-hidden relative">
+        {/* Subtle grid */}
         <div className="absolute inset-0 opacity-[0.025]"
           style={{ backgroundImage: 'linear-gradient(#6366f1 1px,transparent 1px),linear-gradient(90deg,#6366f1 1px,transparent 1px)', backgroundSize: '24px 24px' }} />
-        <div className="h-full relative transition-opacity duration-200" style={{ opacity: fading ? 0 : 1 }}>
+        {/* Slide content — slight blur to tease without fully exposing */}
+        <div className="h-full relative transition-opacity duration-200" style={{ opacity: fading ? 0 : 1, filter: 'blur(0.6px)' }}>
           <Slide />
         </div>
+        {/* Bottom fade — obscures lower detail, feels intentional */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 rounded-b-xl pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent, #0f172a)' }} />
       </div>
 
       {/* Dot indicators */}
