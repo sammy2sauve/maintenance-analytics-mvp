@@ -3,20 +3,23 @@ Billing API — plan status, upgrade, and promo code endpoints.
 Stripe integration wired up at checkout time; stubs return 501 until then.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 
-from .auth import get_current_user_id, get_user_locations
+from .auth import decode_token
 from .neon import get_conn
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
+bearer = HTTPBearer()
 
 
-def _current_user_id(token=Depends(get_current_user_id)):
-    if not token:
-        raise HTTPException(401, "Not authenticated")
-    return token
+def _current_user_id(credentials: HTTPAuthorizationCredentials = Depends(bearer)) -> int:
+    payload = decode_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(401, "Invalid or expired token")
+    return int(payload["sub"])
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
