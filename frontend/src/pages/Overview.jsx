@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getPredictions, getKPIs, getWorkOrders } from '../services/api';
 import { AlertCircle, Wrench, ClipboardList, CheckCircle2, TrendingUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import EmptyState from '../components/EmptyState';
+import GatedView from '../components/GatedView';
 import {
   PieChart, Pie, Cell,
   Tooltip, ResponsiveContainer,
@@ -232,6 +232,48 @@ function InsightsPreview({ insights, onExport }) {
   );
 }
 
+function OverviewSkeleton() {
+  return (
+    <div className="w-full h-full p-6 space-y-4 overflow-hidden">
+      {/* Stat cards */}
+      <div className="grid grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-slate-800 rounded-xl h-24 border border-slate-700/50" />
+        ))}
+      </div>
+      {/* Charts row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-slate-800 rounded-xl h-52 border border-slate-700/50 flex items-center justify-center">
+          <div className="w-28 h-28 rounded-full border-8 border-slate-700" />
+        </div>
+        <div className="bg-slate-800 rounded-xl h-52 border border-slate-700/50 flex items-end justify-center pb-6 gap-2">
+          {[60, 80, 45, 90, 70, 55, 85].map((h, i) => (
+            <div key={i} className="w-5 bg-slate-700 rounded-t" style={{ height: h * 0.55 }} />
+          ))}
+        </div>
+        <div className="bg-slate-800 rounded-xl h-52 border border-slate-700/50 p-4 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="w-16 h-3 bg-slate-700 rounded" />
+              <div className="flex-1 h-3 bg-slate-700/60 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Insights row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="bg-slate-800 rounded-xl h-20 border border-slate-700/50 p-4 space-y-2">
+            <div className="w-2/3 h-3 bg-slate-700 rounded" />
+            <div className="w-full h-2 bg-slate-700/60 rounded" />
+            <div className="w-4/5 h-2 bg-slate-700/60 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Overview({ dateRange }) {
   const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -288,7 +330,13 @@ export default function Overview({ dateRange }) {
     if (hasApiKey) load();
   }, [dateRange, hasApiKey, syncVersion]);
 
-  if (!hasApiKey) return <EmptyState />;
+  if (!hasApiKey) return (
+    <GatedView
+      title="Fleet overview"
+      description="Connect FaciliWorks to see your live KPIs, risk distribution, maintenance health score, and AI-generated insights."
+      skeleton={<OverviewSkeleton />}
+    />
+  );
 
   if (loading) {
     return (

@@ -26,7 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .encryption import decrypt
 from .neon import get_conn
@@ -412,6 +412,54 @@ def sync(location_id=None) -> tuple[int, int]:
     print(f"  -> {inserted} inserted, {updated} updated in TrueSignal DB")
     print("Sync complete.")
     return inserted, updated
+
+
+# ── Push work order to FaciliWorks ────────────────────────────────────────────
+
+def push_pm_as_work_order(suggestion: dict, base_url: str, api_key: str) -> str:
+    """
+    Push a PM suggestion as a new Corrective Maintenance work order to FaciliWorks.
+    Returns the created WO identifier (woNumber or maintenanceKey as string).
+    """
+    # Reverse map: internal asset_id -> FW equipmentMasterID
+    fw_assets = fetch_all_fw("v1/assets", api_key, base_url)
+    asset_map = build_asset_map(fw_assets)
+    reverse_map = {v: k for k, v in asset_map.items()}
+
+    asset_id = suggestion["asset_id"]
+    mid = reverse_map.get(asset_id)
+    if not mid:
+        raise ValueError(f"Asset '{asset_id}' not found in FaciliWorks. Run a sync first.")
+
+    due_epoch = int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp())
+
+    description = (
+        f"PM Frequency Optimization — Adjust from "
+        f"{suggestion['current_pm_frequency_days']}d to "
+        f"{suggestion['suggested_pm_frequency_days']}d interval.\n"
+        f"Reason: {suggestion.get('reason', '')}"
+    )
+
+    payload = json.dumps({
+        "asset": {"equipmentMasterID": mid},
+        "description": description,
+        "priority": {"comboBoxText": "Medium"},
+        "dueDate": due_epoch,
+        "estimatedHours": 2.0,
+        "requestedBy": "TrueSignal Predictive Intelligence",
+    }).encode()
+
+    url = f"{base_url.rstrip('/')}/v1/cm"
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        result = json.loads(r.read())
+
+    return str(result.get("woNumber") or result.get("maintenanceKey") or result.get("id") or "")
 
 
 if __name__ == "__main__":

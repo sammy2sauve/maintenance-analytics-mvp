@@ -20,7 +20,7 @@ Endpoints:
 import json
 import random
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 
 app = FastAPI(title="Mock FaciliWorks API", version="9.2.12")
 random.seed(42)
@@ -289,6 +289,24 @@ def get_asset_history(
     history = [{"type": "CM", **r} for r in cms] + [{"type": "PM", **r} for r in pms]
     history.sort(key=lambda r: r.get("dueDate") or 0, reverse=True)
     return _paginate(history, loadOptions)
+
+
+@app.post("/v1/cm")
+async def create_cm(
+    request: Request,
+    x_api_key: str = Header(None),
+):
+    _auth(x_api_key)
+    body = await request.json()
+    new_key = max((r["maintenanceKey"] for r in _ALL_CMS), default=2000) + 1
+    wo = {
+        "maintenanceKey": new_key,
+        "woNumber": f"CM-{new_key}",
+        "status": {"comboBoxText": "Open"},
+        **body,
+    }
+    _ALL_CMS.append(wo)
+    return wo
 
 
 @app.get("/health")

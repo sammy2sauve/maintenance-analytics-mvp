@@ -25,7 +25,13 @@ from .auth import (
     get_user_role_in_org,
 )
 from .adapter_maintainx import sync as mx_sync, mark_implemented_suggestions
-from .adapter_faciliworks import sync as fw_sync, mark_implemented_suggestions as fw_mark_implemented
+from .adapter_faciliworks import (
+    sync as fw_sync,
+    mark_implemented_suggestions as fw_mark_implemented,
+    get_credentials as fw_get_credentials,
+    push_pm_as_work_order,
+)
+from .neon import get_conn
 from .pipeline import run_pipeline
 from .api_alerts import check_and_fire_alerts
 
@@ -141,10 +147,54 @@ def trigger_sync(
 
 # -- FaciliWorks endpoints -----------------------------------------------------
 
+class PushWORequest(BaseModel):
+    suggestion_id: int
+    location_id: int = None
+
+
 class FaciliWorksKeyRequest(BaseModel):
     base_url: str
     api_key: str
     location_id: int = None
+
+
+@router.post("/faciliworks-push-wo")
+def push_wo_to_faciliworks(body: PushWORequest, user_id: int = Depends(_current_user_id)):
+    loc_id = _resolve_location(user_id, body.location_id)
+    _require_not_viewer(user_id, loc_id)
+    if not location_has_api_key(loc_id):
+        raise HTTPException(400, "No FaciliWorks credentials stored for this location")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM pm_optimization_suggestions WHERE id = %s AND location_id = %s",
+        (body.suggestion_id, loc_id),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Suggestion not found")
+
+    base_url, api_key = fw_get_credentials(loc_id)
+
+    try:
+        wo_id = push_pm_as_work_order(dict(row), base_url, api_key)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"FaciliWorks push failed: {e}")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE pm_optimization_suggestions SET status = 'accepted' WHERE id = %s",
+        (body.suggestion_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"success": True, "wo_id": wo_id, "suggestion_id": body.suggestion_id}
 
 
 @router.post("/faciliworks-key")

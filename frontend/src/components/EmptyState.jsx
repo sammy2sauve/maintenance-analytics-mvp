@@ -24,7 +24,7 @@ export default function EmptyState() {
           No CMMS connected
         </h2>
         <p className="text-sm text-slate-400 mb-6">
-          Connect your MaintainX account in Settings to start syncing assets and work orders.
+          Connect your FaciliWorks account in Settings to start syncing assets and work orders.
         </p>
         <Link
           to="/dashboard/settings"

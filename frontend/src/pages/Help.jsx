@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, HelpCircle, Zap, Link2, BarChart2, ClipboardList, MessageSquare } from 'lucide-react';
+import { openSupportChat } from '../components/SupportChat';
 
 const FAQS = [
   {
@@ -160,13 +161,13 @@ export default function Help() {
           <h1 className="text-xl font-bold text-white">Help &amp; Documentation</h1>
           <p className="text-sm text-slate-400 mt-0.5">Answers to common questions about TrueSignal</p>
         </div>
-        <a
-          href="mailto:support@truesignalapp.com"
+        <button
+          onClick={() => openSupportChat()}
           className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 hover:text-white hover:border-slate-600 transition-colors"
         >
           <MessageSquare className="w-4 h-4" />
           Contact Support
-        </a>
+        </button>
       </div>
 
       {/* Quick links */}
@@ -206,13 +207,13 @@ export default function Help() {
         <p className="text-sm text-slate-400 mb-4">
           Our support team is available to help with setup, integration questions, and feature requests.
         </p>
-        <a
-          href="mailto:support@truesignalapp.com"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+        <button
+          onClick={() => openSupportChat()}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <MessageSquare className="w-4 h-4" />
-          Email Support
-        </a>
+          Contact Support
+        </button>
       </div>
     </div></div>
   );

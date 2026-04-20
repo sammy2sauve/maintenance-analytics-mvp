@@ -13,6 +13,8 @@ import Settings from './pages/Settings';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import SupportChat from './components/SupportChat';
+import OnboardingBanner from './components/OnboardingBanner';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
@@ -142,6 +144,7 @@ function Dashboard() {
     <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
       <Header dateRange={dateRange} setDateRange={setDateRange} />
       <Nav basePath="/dashboard" />
+      <OnboardingBanner />
       <div className="flex-1 overflow-hidden">
         <Routes>
           <Route path="/"        element={<Overview dateRange={dateRange} />} />
@@ -152,6 +155,7 @@ function Dashboard() {
           <Route path="*" element={<Navigate to="/dashboard/" replace />} />
         </Routes>
       </div>
+      <SupportChat />
     </div>
   );
 }

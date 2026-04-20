@@ -63,4 +63,10 @@ export const generateReport = async ({ sections, days, format, reportType = 'sum
   return { blob, filename };
 };
 
+// Settings endpoints
+export const getSettings = {
+  pushToFaciliWorks: (suggestionId, locationId) =>
+    api.post('/settings/faciliworks-push-wo', { suggestion_id: suggestionId, location_id: locationId }),
+};
+
 export default api;

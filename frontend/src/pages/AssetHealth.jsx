@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getPredictions } from '../services/api';
 import { AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import EmptyState from '../components/EmptyState';
+import GatedView from '../components/GatedView';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const RISK_COLORS  = { LOW: '#34d399', MEDIUM: '#fbbf24', HIGH: '#fb923c', CRITICAL: '#f87171' };
@@ -86,6 +86,53 @@ function HistogramTooltip({ active, payload, label }) {
   );
 }
 
+function AssetHealthSkeleton() {
+  const rings = [
+    { color: '#f87171', label: 'CRITICAL', count: 2 },
+    { color: '#fb923c', label: 'HIGH',     count: 7 },
+    { color: '#fbbf24', label: 'MEDIUM',   count: 9 },
+    { color: '#34d399', label: 'LOW',      count: 11 },
+  ];
+  return (
+    <div className="w-full h-full p-4 space-y-4 overflow-hidden">
+      {/* Risk rings */}
+      <div className="grid grid-cols-4 gap-4">
+        {rings.map(({ color, label, count }) => (
+          <div key={label} className="bg-slate-800 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center gap-3">
+            <div className="relative w-20 h-20">
+              <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#334155" strokeWidth="8" />
+                <circle cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="8"
+                  strokeDasharray={`${count * 8} 201`} strokeLinecap="round" opacity="0.7" />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-lg font-bold" style={{ color }}>{count}</span>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">{label}</span>
+          </div>
+        ))}
+      </div>
+      {/* Two-col layout */}
+      <div className="flex gap-4 flex-1">
+        <div className="flex-1 bg-slate-800 rounded-xl border border-slate-700/50 p-4 space-y-2">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-700/30">
+              <div className="w-2 h-2 rounded-full bg-slate-600" />
+              <div className="flex-1 h-3 bg-slate-700 rounded" />
+              <div className="w-12 h-3 bg-slate-700/60 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="w-56 bg-slate-800 rounded-xl border border-slate-700/50 p-4 space-y-3">
+          <div className="w-2/3 h-3 bg-slate-700 rounded mb-4" />
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-8 bg-slate-700/60 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AssetHealth({ dateRange }) {
   const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading]     = useState(true);
@@ -123,7 +170,13 @@ export default function AssetHealth({ dateRange }) {
   // so the total count is stable and reflects the full monitored fleet.
   useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, syncVersion]);
 
-  if (!hasApiKey) return <EmptyState />;
+  if (!hasApiKey) return (
+    <GatedView
+      title="Asset health"
+      description="Connect FaciliWorks to see per-asset risk scores, CRITICAL/HIGH alerts, and your Act Now priority list."
+      skeleton={<AssetHealthSkeleton />}
+    />
+  );
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">

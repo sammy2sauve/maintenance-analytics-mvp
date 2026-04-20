@@ -33,6 +33,8 @@ from .api_settings import router as settings_router
 from .api_reports import router as reports_router
 from .api_invites import router as invites_router
 from .api_alerts import router as alerts_router
+from .api_support import router as support_router
+from .mock_faciliworks import app as mock_fw_app
 
 # Pydantic models for API responses
 class KPIRecord(BaseModel):
@@ -92,6 +94,11 @@ app.include_router(settings_router)
 app.include_router(reports_router)
 app.include_router(invites_router)
 app.include_router(alerts_router)
+app.include_router(support_router)
+
+# Mount mock FaciliWorks server — used for onboarding demos and integration testing.
+# Test accounts can use Base URL: https://<your-domain>/mock-fw, API Key: any non-empty string.
+app.mount("/mock-fw", mock_fw_app)
 
 @app.get("/health", tags=["Health"])
 async def health():

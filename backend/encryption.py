@@ -48,11 +48,12 @@ def encrypt(plaintext: str) -> tuple[bytes, bytes, bytes]:
     return ciphertext, salt, nonce
 
 
-def decrypt(ciphertext: bytes, salt: bytes, nonce: bytes) -> str:
+def decrypt(ciphertext, salt, nonce) -> str:
     """
     Decrypt and return original plaintext.
     Only called server-side when the sync worker needs to call an external API.
     Never called from any endpoint that returns data to the frontend.
     """
-    key = _derive_key(salt)
-    return AESGCM(key).decrypt(nonce, ciphertext, None).decode()
+    # psycopg2 returns bytea columns as memoryview — normalise to bytes
+    key = _derive_key(bytes(salt))
+    return AESGCM(key).decrypt(bytes(nonce), bytes(ciphertext), None).decode()

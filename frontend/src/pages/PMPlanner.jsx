@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getPredictions } from '../services/api';
+import { getPredictions, getSettings } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import EmptyState from '../components/EmptyState';
+import GatedView from '../components/GatedView';
 import { AlertCircle, ChevronRight, Zap } from 'lucide-react';
 
 const STATUS_STYLES = {
@@ -46,6 +46,60 @@ function StatCard({ label, value, color }) {
   );
 }
 
+function PMPlannerSkeleton() {
+  const statColors = ['#fbbf24', '#34d399', '#6366f1', '#64748b'];
+  return (
+    <div className="w-full h-full px-4 py-4 space-y-4 overflow-hidden">
+      {/* Stat cards */}
+      <div className="grid grid-cols-4 gap-3">
+        {statColors.map((c, i) => (
+          <div key={i} className="bg-slate-800 rounded-xl h-20 border border-slate-700/50 p-4">
+            <div className="w-1/2 h-2 bg-slate-700 rounded mb-2" />
+            <div className="h-7 w-10 rounded" style={{ background: c, opacity: 0.3 }} />
+          </div>
+        ))}
+      </div>
+      {/* Filter tabs */}
+      <div className="flex gap-2">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-6 w-16 bg-slate-800 rounded-full border border-slate-700/50" />
+        ))}
+      </div>
+      {/* Two-col layout */}
+      <div className="flex gap-4">
+        <div className="flex-1 space-y-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-slate-800 rounded-xl border border-slate-700/50 p-4 space-y-2">
+              <div className="flex gap-2">
+                <div className="w-24 h-3 bg-slate-700 rounded" />
+                <div className="w-14 h-3 bg-slate-700/60 rounded" />
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="w-8 h-3 bg-slate-700 rounded" />
+                <div className="w-3 h-3 bg-slate-700 rounded" />
+                <div className="w-8 h-3 bg-emerald-500/30 rounded" />
+              </div>
+              <div className="w-full h-2 bg-slate-700/40 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="w-80 bg-slate-800 rounded-xl border border-slate-700/50 p-5 space-y-4">
+          <div className="w-1/2 h-4 bg-slate-700 rounded" />
+          <div className="h-20 bg-slate-700/50 rounded-lg" />
+          <div className="grid grid-cols-2 gap-2">
+            {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-slate-700/50 rounded-lg" />)}
+          </div>
+          <div className="space-y-2">
+            <div className="w-full h-2 bg-slate-700/40 rounded" />
+            <div className="w-4/5 h-2 bg-slate-700/40 rounded" />
+            <div className="w-3/5 h-2 bg-slate-700/40 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PMPlanner() {
   const { hasApiKey, locationId } = useAuth();
   const [suggestions, setSuggestions] = useState([]);
@@ -53,6 +107,8 @@ export default function PMPlanner() {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushResult, setPushResult] = useState(null); // { woId, error }
   const [statusFilter, setStatusFilter] = useState('all');
 
   const load = async () => {
@@ -71,7 +127,13 @@ export default function PMPlanner() {
 
   useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, locationId]);
 
-  if (!hasApiKey) return <EmptyState />;
+  if (!hasApiKey) return (
+    <GatedView
+      title="PM Planner"
+      description="Connect FaciliWorks to get AI-generated PM schedule recommendations you can review, accept, and push directly to your CMMS."
+      skeleton={<PMPlannerSkeleton />}
+    />
+  );
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -115,6 +177,24 @@ export default function PMPlanner() {
     }
   };
 
+  const pushToFaciliWorks = async (id) => {
+    setPushing(true);
+    setPushResult(null);
+    try {
+      const res = await getSettings.pushToFaciliWorks(id, locationId);
+      const woId = res.data?.wo_id;
+      setSuggestions(prev => prev.map(s => s.id === id ? { ...s, status: 'accepted' } : s));
+      setPushResult({ woId });
+      setTimeout(() => setPushResult(null), 5000);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Push failed';
+      setPushResult({ error: msg });
+      setTimeout(() => setPushResult(null), 6000);
+    } finally {
+      setPushing(false);
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col px-4 py-4 overflow-hidden">
 
@@ -125,14 +205,12 @@ export default function PMPlanner() {
             <h1 className="text-lg font-semibold text-white">PM Planner</h1>
             <p className="text-xs text-slate-500 mt-0.5">Review AI-generated maintenance schedule recommendations</p>
           </div>
-          <button
-            disabled
-            title="Connect FaciliWorks to enable"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-500 cursor-not-allowed"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            Generate in FaciliWorks — connect FaciliWorks to enable
-          </button>
+          {pushResult?.woId && (
+            <span className="text-xs text-emerald-400 font-medium">Created: {pushResult.woId}</span>
+          )}
+          {pushResult?.error && (
+            <span className="text-xs text-red-400">{pushResult.error}</span>
+          )}
         </div>
 
         <div className="grid grid-cols-4 gap-3">
@@ -298,14 +376,26 @@ export default function PMPlanner() {
                     Reset to pending
                   </button>
                 ) : null}
-                <button
-                  disabled
-                  title="Connect FaciliWorks to enable"
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/30 text-slate-600 text-xs rounded-lg cursor-not-allowed"
-                >
-                  <Zap className="w-3 h-3" />
-                  Generate in FaciliWorks
-                </button>
+                {hasApiKey && selectedItem.status !== 'implemented' && (
+                  <button
+                    onClick={() => pushToFaciliWorks(selectedItem.id)}
+                    disabled={pushing}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Zap className="w-3 h-3" />
+                    {pushing ? 'Sending to FaciliWorks…' : 'Generate in FaciliWorks'}
+                  </button>
+                )}
+                {!hasApiKey && (
+                  <button
+                    disabled
+                    title="Connect FaciliWorks in Settings to enable"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/30 text-slate-600 text-xs rounded-lg cursor-not-allowed"
+                  >
+                    <Zap className="w-3 h-3" />
+                    Generate in FaciliWorks
+                  </button>
+                )}
               </div>
 
             </div>
