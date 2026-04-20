@@ -74,14 +74,31 @@ def get_user_locations(user_id: int) -> List[dict]:
     cur.execute("""
         SELECT l.id, l.org_id, l.name,
                (l.mx_api_key_enc IS NOT NULL) as has_api_key,
-               ula.role as access_role
+               ula.role as access_role,
+               o.plan,
+               o.trial_ends_at,
+               o.extra_seats,
+               o.seat_limit
         FROM locations l
         JOIN user_location_access ula ON ula.location_id = l.id
+        JOIN orgs o ON o.id = l.org_id
         WHERE ula.user_id = %s
     """, (user_id,))
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    from datetime import timezone
+    now = __import__('datetime').datetime.now(timezone.utc)
+    for r in rows:
+        d = dict(r)
+        trial_ends = d.get('trial_ends_at')
+        if trial_ends and hasattr(trial_ends, 'tzinfo') and trial_ends.tzinfo is None:
+            trial_ends = trial_ends.replace(tzinfo=timezone.utc)
+        trial_days_left = max(0, (trial_ends - now).days) if trial_ends else 0
+        d['trial_days_left'] = trial_days_left
+        d['trial_ends_at'] = trial_ends.isoformat() if trial_ends else None
+        result.append(d)
+    return result
 
 
 # -- API key storage (on location, not user) ----------------------------------
@@ -194,8 +211,12 @@ def create_user(name: str, email: str, password: str, org_name: str = None) -> d
     conn = _get_conn()
     cur = conn.cursor()
     try:
-        # Create org
-        cur.execute("INSERT INTO orgs (name) VALUES (%s) RETURNING id", (org_name,))
+        # Create org — 30-day trial starts on signup
+        cur.execute("""
+            INSERT INTO orgs (name, plan, trial_ends_at)
+            VALUES (%s, 'trial', NOW() + INTERVAL '30 days')
+            RETURNING id
+        """, (org_name,))
         org_id = cur.fetchone()['id']
 
         # Create default location

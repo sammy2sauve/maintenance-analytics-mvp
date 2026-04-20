@@ -15,6 +15,9 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import SupportChat from './components/SupportChat';
 import OnboardingBanner from './components/OnboardingBanner';
+import TrialBanner from './components/TrialBanner';
+import Pricing from './pages/Pricing';
+import Upgrade from './pages/Upgrade';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
@@ -145,14 +148,16 @@ function Dashboard() {
       <Header dateRange={dateRange} setDateRange={setDateRange} />
       <Nav basePath="/dashboard" />
       <OnboardingBanner />
+      <TrialBanner />
       <div className="flex-1 overflow-hidden">
         <Routes>
-          <Route path="/"        element={<Overview dateRange={dateRange} />} />
+          <Route path="/"            element={<Overview dateRange={dateRange} />} />
           <Route path="/assets"      element={<AssetHealth />} />
           <Route path="/pm-planner"  element={<PMPlanner />} />
-          <Route path="/help"     element={<Help />} />
-          <Route path="/settings" element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
-          <Route path="*" element={<Navigate to="/dashboard/" replace />} />
+          <Route path="/help"        element={<Help />} />
+          <Route path="/upgrade"     element={<Upgrade />} />
+          <Route path="/settings"    element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
+          <Route path="*"            element={<Navigate to="/dashboard/" replace />} />
         </Routes>
       </div>
       <SupportChat />
@@ -171,6 +176,7 @@ export default function App() {
           <Route path="/verify-email"    element={<VerifyEmail />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
+          <Route path="/pricing"      element={<Pricing />} />
           <Route path="/dashboard/*" element={
             <ProtectedRoute>
               <Dashboard />

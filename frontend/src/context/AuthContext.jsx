@@ -9,6 +9,8 @@ export function AuthProvider({ children }) {
   const [locationId, setLocationId]   = useState(null);
   const [hasApiKey, setHasApiKey]     = useState(false);
   const [role, setRole]               = useState(null);
+  const [plan, setPlan]               = useState(null);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(null);
   const [syncing, setSyncing]         = useState(false);
   const [lastSynced, setLastSynced]   = useState(null);
   const [syncVersion, setSyncVersion] = useState(0);
@@ -20,10 +22,14 @@ export function AuthProvider({ children }) {
       setLocationId(loc.id);
       setHasApiKey(!!loc.has_api_key);
       setRole(loc.access_role || null);
+      setPlan(loc.plan || null);
+      setTrialDaysLeft(loc.trial_days_left ?? null);
     } else {
       setLocationId(null);
       setHasApiKey(false);
       setRole(null);
+      setPlan(null);
+      setTrialDaysLeft(null);
     }
   };
 
@@ -88,6 +94,8 @@ export function AuthProvider({ children }) {
     setLocationId(null);
     setHasApiKey(false);
     setRole(null);
+    setPlan(null);
+    setTrialDaysLeft(null);
     didInitialSync.current = false;
   };
 
@@ -100,12 +108,15 @@ export function AuthProvider({ children }) {
   };
 
   const isOwnerOrAdmin = role === 'owner' || role === 'admin';
+  const trialActive = plan === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0;
+  const trialExpired = plan === 'trial' && trialDaysLeft !== null && trialDaysLeft <= 0;
 
   return (
     <AuthContext.Provider value={{
       user, loading, login, signup, logout,
       locationId, hasApiKey, refreshLocation,
       role, isOwnerOrAdmin,
+      plan, trialDaysLeft, trialActive, trialExpired,
       syncing, lastSynced, syncVersion, triggerSync,
     }}>
       {children}

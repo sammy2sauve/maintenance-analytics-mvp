@@ -326,6 +326,7 @@ export default function Landing() {
       <nav className="flex-shrink-0 w-full px-8 py-3.5 flex items-center justify-between border-b border-slate-800/60">
         <Logo />
         <div className="flex items-center gap-2">
+          <Link to="/pricing" className="text-sm text-slate-400 hover:text-white px-4 py-1.5 rounded-lg transition-colors">Pricing</Link>
           <Link to="/login" className="text-sm text-slate-300 hover:text-white px-4 py-1.5 rounded-lg transition-colors">Sign In</Link>
           <Link to="/signup" className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg transition-colors">Get Started</Link>
         </div>
