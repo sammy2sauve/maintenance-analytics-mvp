@@ -84,19 +84,21 @@ export default function Pricing() {
         </p>
 
         {/* Monthly / Annual toggle */}
-        <div className="flex items-center justify-center gap-3 mt-8">
-          <span className={`text-sm font-medium ${!annual ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
+        <div className="flex items-center justify-center gap-4 mt-8">
+          <span className={`text-sm font-medium select-none ${!annual ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
           <button
             onClick={() => setAnnual(a => !a)}
-            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${annual ? 'bg-indigo-600' : 'bg-slate-700'}`}
+            className={`relative flex-shrink-0 w-12 h-6 rounded-full overflow-hidden transition-colors duration-200 ${annual ? 'bg-indigo-600' : 'bg-slate-700'}`}
           >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${annual ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            <span
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-md transition-transform duration-200 ${annual ? 'translate-x-7' : 'translate-x-1'}`}
+            />
           </button>
-          <span className={`text-sm font-medium ${annual ? 'text-white' : 'text-slate-500'}`}>
+          <span className={`text-sm font-medium select-none ${annual ? 'text-white' : 'text-slate-500'}`}>
             Annual
-            <span className="ml-2 text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-full">
-              2 months free
-            </span>
+          </span>
+          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-full">
+            2 months free
           </span>
         </div>
       </div>
