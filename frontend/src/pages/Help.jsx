@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, HelpCircle, Zap, Link2, BarChart2, FileText, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronRight, HelpCircle, Zap, Link2, BarChart2, ClipboardList, MessageSquare } from 'lucide-react';
 
 const FAQS = [
   {
@@ -9,88 +9,88 @@ const FAQS = [
     items: [
       {
         q: 'What does TrueSignal do?',
-        a: 'TrueSignal analyzes work order history from your CMMS to calculate a risk score for each asset. It surfaces which assets are most likely to fail soon, and recommends optimized PM schedules to reduce unplanned downtime and maintenance costs.',
+        a: 'TrueSignal analyzes work order history from your CMMS to calculate a risk score for each asset. It surfaces which assets are most likely to fail soon, recommends optimized PM schedules, and helps you shift from reactive to proactive maintenance.',
       },
       {
         q: 'How do I connect my CMMS?',
-        a: 'Go to Settings and enter your MaintainX API key. TrueSignal will sync your assets and work order history automatically. After the initial sync, data refreshes whenever you click "Sync" in the navigation bar.',
+        a: 'FaciliWorks integration is coming soon. Once available, go to Settings, enter your FaciliWorks API key, and TrueSignal will sync your assets and work order history automatically.',
       },
       {
-        q: 'How often should I sync?',
-        a: 'For most facilities, a daily sync is sufficient. The Sync button in the top nav triggers an immediate sync. A scheduled automatic daily sync is on the roadmap.',
+        q: 'What pages are in the app?',
+        a: 'Overview — fleet-level KPIs and recent activity. Asset Health — per-asset risk rings, Act Now list, and urgency histogram. PM Planner — AI-generated PM schedule recommendations you can accept and push to your CMMS. Settings — platform connection, team management, and alert preferences.',
       },
       {
         q: 'Is my data secure?',
-        a: 'Yes. Your CMMS API key is encrypted with AES-256-GCM before storage. TrueSignal never transmits your raw operational data outside your environment.',
+        a: 'Yes. Your CMMS API key is encrypted with AES-256-GCM before storage and never returned to the browser. TrueSignal does not transmit your raw operational data to third parties.',
       },
     ],
   },
   {
-    category: 'Understanding Risk Scores',
+    category: 'Asset Health & Risk Scores',
     icon: BarChart2,
     color: 'indigo',
     items: [
       {
         q: 'How is an asset\'s risk score calculated?',
-        a: 'The risk score (0–1) is a weighted combination of four factors: (1) work order frequency — assets with more reactive/corrective WOs score higher; (2) recency — recent failures carry more weight than older ones; (3) work order age — older assets with sparse history are penalized; (4) recent maintenance credit — assets with recent completed PMs receive a score reduction.',
+        a: 'The risk score (0–1) is a weighted combination of: (1) work order frequency — assets with more reactive/corrective WOs score higher; (2) recency — recent failures carry more weight; (3) history depth — sparse history is penalized; (4) recent PM credit — a completed PM reduces the score.',
       },
       {
         q: 'What do the risk levels mean?',
-        a: 'CRITICAL (≥ 0.75): Immediate action recommended — high likelihood of imminent failure. HIGH (0.50–0.75): Schedule maintenance soon. MEDIUM (0.25–0.50): Monitor closely and plan next PM. LOW (< 0.25): Asset is healthy — follow standard PM schedule.',
+        a: 'CRITICAL (≥ 0.75): Immediate action recommended. HIGH (0.50–0.75): Schedule maintenance soon. MEDIUM (0.25–0.50): Monitor and plan next PM. LOW (< 0.25): Asset is healthy — follow standard schedule.',
       },
       {
-        q: 'Why does an asset with recent PM work show as CRITICAL?',
-        a: 'If an asset has a very high corrective WO frequency or recent failures, the maintenance credit may not fully offset the underlying risk. This is intentional — a single PM after many failures does not fully restore an asset to low risk. Review the asset\'s full WO history for context.',
+        q: 'What is the Maintenance Health score on the Overview?',
+        a: 'The health score is a fleet-level indicator. It starts at 50, subtracts 3 points per Critical asset and 1 point per High risk asset, and adds up to 5 points for strong PM compliance. Scores below 40 indicate a reactive maintenance culture.',
       },
       {
         q: 'How many data points are needed for an accurate score?',
-        a: 'TrueSignal performs best with 6+ months of WO history. Assets with fewer than 3 WOs will have less reliable scores, indicated by a lower confidence level.',
+        a: 'TrueSignal performs best with 6+ months of WO history. Assets with fewer than 3 WOs will have less reliable scores, shown as a lower confidence percentage.',
       },
     ],
   },
   {
-    category: 'MaintainX Integration',
+    category: 'FaciliWorks Integration',
     icon: Link2,
     color: 'sky',
     items: [
       {
-        q: 'Which MaintainX plan do I need?',
-        a: 'TrueSignal requires API access, which is available on MaintainX Business and Enterprise plans. The API key can be found in your MaintainX account under Settings → API.',
+        q: 'When will FaciliWorks integration be available?',
+        a: 'FaciliWorks integration is actively in development and will be available soon. You\'ll be notified by email when it\'s ready to connect.',
       },
       {
-        q: 'What data does TrueSignal pull from MaintainX?',
-        a: 'TrueSignal fetches your asset list and all work orders (corrective, preventive, and reactive). It uses work order completion dates, types, and asset associations to build the risk model. It does not read or write any other data.',
+        q: 'What data will TrueSignal pull from FaciliWorks?',
+        a: 'TrueSignal will fetch your asset list and all work orders (corrective and preventive). It uses completion dates, WO types, and asset associations to build the risk model. It will not read or modify any other data.',
       },
       {
-        q: 'Why are some assets missing after sync?',
-        a: 'TrueSignal only processes assets that have at least one associated work order. Assets with no WO history will not appear in the dashboard. Create a baseline WO in MaintainX for those assets and re-sync.',
+        q: 'Why are some assets missing?',
+        a: 'TrueSignal only processes assets that have at least one associated work order. Assets with no WO history will not appear in the dashboard.',
       },
       {
-        q: 'How are PM suggestion statuses tracked?',
-        a: 'When a PM suggestion is created in TrueSignal and a corresponding WO is completed in MaintainX, the next sync marks the suggestion as "Implemented." This is automatic — no manual status updates are needed.',
+        q: 'Will TrueSignal write back to FaciliWorks?',
+        a: 'Yes — once connected, accepted PM suggestions in the PM Planner can be pushed directly to FaciliWorks as scheduled work orders with one click.',
       },
     ],
   },
   {
-    category: 'Reports & Alerts',
-    icon: FileText,
+    category: 'PM Planner & Alerts',
+    icon: ClipboardList,
     color: 'violet',
     items: [
       {
-        q: 'What can I include in a report?',
-        a: 'Reports can include: Overview Summary, Asset Health Breakdown, Critical & High Risk asset lists, PM Recommendations, Cost Savings Analysis, and AI Insights. Select the sections you need in the Report Builder.',
+        q: 'How are PM suggestions generated?',
+        a: 'TrueSignal analyzes each asset\'s work order history, reactive work rate after PMs, and mean time between failures (MTBF). If the data suggests a different PM cadence would reduce reactive work, a suggestion is generated with a reason and confidence score.',
       },
       {
-        q: 'Can I schedule automated reports?',
-        a: 'Yes. Go to Reports & Alerts → Scheduled Reports to set up daily, weekly, or monthly automated report deliveries to any email address.',
+        q: 'What does accepting a PM suggestion do?',
+        a: 'Accepting marks the suggestion as approved and queues it for generation. Once FaciliWorks is connected, you\'ll be able to push accepted suggestions directly to your CMMS as scheduled PM work orders.',
       },
       {
-        q: 'How do alert rules work?',
-        a: 'Alert rules define conditions that trigger email notifications — for example, "notify me when any asset reaches CRITICAL risk." Alerts fire after each sync if the condition is newly met.',
+        q: 'How do alerts work?',
+        a: 'Alert thresholds are configured in Settings → Alerts. You can toggle alerts for events like a Critical asset being detected or PM compliance dropping below 70%. Email delivery will activate once email is configured for your account.',
       },
       {
-        q: 'What report formats are available?',
-        a: 'PDF (formatted for sharing), CSV (raw data for spreadsheets), and Excel (with charts). Report generation and export are coming in the next release.',
+        q: 'Can I reject a suggestion and re-evaluate later?',
+        a: 'Yes. Rejected suggestions can be reset to "pending" at any time from the PM Planner detail panel. Suggestions are regenerated on each sync so the data stays current.',
       },
     ],
   },
@@ -161,7 +161,7 @@ export default function Help() {
           <p className="text-sm text-slate-400 mt-0.5">Answers to common questions about TrueSignal</p>
         </div>
         <a
-          href="mailto:support@truesignal.io"
+          href="mailto:support@truesignalapp.com"
           className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 hover:text-white hover:border-slate-600 transition-colors"
         >
           <MessageSquare className="w-4 h-4" />
@@ -207,7 +207,7 @@ export default function Help() {
           Our support team is available to help with setup, integration questions, and feature requests.
         </p>
         <a
-          href="mailto:support@truesignal.io"
+          href="mailto:support@truesignalapp.com"
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <MessageSquare className="w-4 h-4" />

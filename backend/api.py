@@ -10,7 +10,8 @@ Run with: uvicorn backend.api:app --reload
 from dotenv import load_dotenv
 load_dotenv()
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+from datetime import date, datetime as dt
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +32,7 @@ from .api_auth import router as auth_router
 from .api_settings import router as settings_router
 from .api_reports import router as reports_router
 from .api_invites import router as invites_router
+from .api_alerts import router as alerts_router
 
 # Pydantic models for API responses
 class KPIRecord(BaseModel):
@@ -41,22 +43,22 @@ class KPIRecord(BaseModel):
     truesignal_value: Optional[float]  # ← FIXED: was true_signal_value
     distortion_flag: bool  # ← FIXED: was distortion
     explanation_text: Optional[str] = None  # ← FIXED: was explanation
-    created_at: Optional[str] = None
+    created_at: Optional[Union[str, dt]] = None
 
 
 class DailyKPIRecord(KPIRecord):
     """Model for daily KPI records."""
-    period_date: str
+    period_date: Union[str, date, dt]
 
 
 class WeeklyKPIRecord(KPIRecord):
     """Model for weekly KPI records."""
-    period_week: str
+    period_week: Union[str, date, dt]
 
 
 class MonthlyKPIRecord(KPIRecord):
     """Model for monthly KPI records."""
-    period_month: str
+    period_month: Union[str, date, dt]
 
 
 # Initialize FastAPI app
@@ -67,9 +69,18 @@ app = FastAPI(
 )
 
 # ADD CORS MIDDLEWARE
+_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://truesignalapp.com",
+    "https://www.truesignalapp.com",
+]
+# Allow any Vercel preview URL as well
+import re as _re
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,6 +91,12 @@ app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(reports_router)
 app.include_router(invites_router)
+app.include_router(alerts_router)
+
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "ok"}
+
 
 @app.get("/", tags=["Root"])
 async def root() -> Dict[str, Any]:
@@ -313,6 +330,71 @@ async def get_monthly_kpis_endpoint(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
         )
+
+
+@app.get("/work-orders/stats", tags=["Work Orders"])
+async def get_work_order_stats(
+    location_id: Optional[int] = Query(None),
+) -> Dict[str, Any]:
+    try:
+        from .neon import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        loc_filter = "WHERE location_id = %s" if location_id is not None else ""
+        params = [location_id] if location_id is not None else []
+        cur.execute(f"""
+            SELECT
+                COUNT(*) FILTER (WHERE LOWER(status) NOT IN ('completed', 'done', 'closed')) AS open_count,
+                COUNT(*) FILTER (WHERE LOWER(type) = 'preventive') AS pm_total,
+                COUNT(*) FILTER (WHERE LOWER(type) = 'preventive' AND LOWER(status) IN ('completed', 'done', 'closed')) AS pm_completed,
+                COUNT(*) FILTER (WHERE LOWER(type) IN ('corrective', 'reactive')) AS reactive_count,
+                COUNT(*) AS total_count
+            FROM work_orders {loc_filter}
+        """, params)
+        row = cur.fetchone()
+        conn.close()
+        pm_total = row['pm_total'] or 0
+        total = row['total_count'] or 1
+        return {
+            "open_count": row['open_count'] or 0,
+            "pm_compliance_pct": round((row['pm_completed'] / pm_total * 100) if pm_total else 0),
+            "reactive_rate_pct": round((row['reactive_count'] / total * 100) if total else 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/work-orders/recent", tags=["Work Orders"])
+async def get_recent_work_orders(
+    limit: int = Query(10, ge=1, le=50),
+    location_id: Optional[int] = Query(None),
+) -> List[Dict[str, Any]]:
+    try:
+        from .neon import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        params = []
+        loc_filter = "AND location_id = %s" if location_id is not None else ""
+        if location_id is not None:
+            params.append(location_id)
+        query = f"""
+            SELECT * FROM (
+                SELECT DISTINCT ON (asset_id)
+                    work_order_id, asset_id, type, status, priority,
+                    creation_date, completion_date, technician
+                FROM work_orders
+                WHERE 1=1 {loc_filter}
+                ORDER BY asset_id, creation_date DESC
+            ) sub
+            ORDER BY creation_date DESC LIMIT %s
+        """
+        params.append(limit)
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

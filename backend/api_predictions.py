@@ -8,8 +8,9 @@ These endpoints can be integrated into the main API or run standalone.
 """
 
 import math
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+import pandas as pd
+from datetime import datetime, timedelta, date
+from typing import List, Dict, Any, Optional, Union
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -59,7 +60,7 @@ class FailurePrediction(BaseModel):
     """Model for asset failure prediction."""
     id: Optional[int] = None
     asset_id: str
-    prediction_date: str
+    prediction_date: Union[str, date, datetime]
     failure_probability: float = Field(..., ge=0, le=1)
     confidence_score: float = Field(..., ge=0, le=1)
     days_to_predicted_failure: Optional[int] = None
@@ -68,7 +69,7 @@ class FailurePrediction(BaseModel):
     reactive_work_count_90d: Optional[int] = None
     risk_level: str
     recommendation: str
-    created_at: Optional[str] = None
+    created_at: Optional[Union[str, date, datetime]] = None
 
 
 class PMOptimizationSuggestion(BaseModel):
@@ -82,9 +83,9 @@ class PMOptimizationSuggestion(BaseModel):
     estimated_risk_change: Optional[float] = None
     confidence_score: Optional[float] = Field(None, ge=0, le=1)
     reactive_work_after_pm_count: Optional[int] = None
-    suggestion_date: str
+    suggestion_date: Union[str, date, datetime]
     status: str = "pending"
-    created_at: Optional[str] = None
+    created_at: Optional[Union[str, date, datetime]] = None
 
 
 class MaintenanceInsight(BaseModel):
@@ -97,8 +98,8 @@ class MaintenanceInsight(BaseModel):
     impact_level: Optional[str] = None
     affected_assets: Optional[str] = None
     metric_value: Optional[float] = None
-    insight_date: str
-    created_at: Optional[str] = None
+    insight_date: Union[str, date, datetime]
+    created_at: Optional[Union[str, date, datetime]] = None
 
 
 class SuggestionStatusUpdate(BaseModel):
@@ -177,7 +178,8 @@ async def get_failure_predictions(
             return []
 
         if days and 'prediction_date' in df.columns:
-            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            cutoff = (datetime.now() - timedelta(days=days)).date()
+            df['prediction_date'] = pd.to_datetime(df['prediction_date']).dt.date
             df = df[df['prediction_date'] >= cutoff]
 
         # Deduplicate to latest prediction per asset, then apply requested limit

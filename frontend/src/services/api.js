@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -8,6 +8,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Attach JWT to every request automatically
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('ts_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
 // KPI endpoints
@@ -25,6 +32,13 @@ export const getPredictions = {
   pmOptimization: (params) => api.get('/predictions/pm-optimization', { params }),
   insights: (params) => api.get('/predictions/insights', { params }),
   summary: () => api.get('/predictions/summary'),
+  updateSuggestionStatus: (id, status) => api.patch(`/predictions/pm-optimization/${id}/status`, { status }),
+};
+
+// Work order endpoints
+export const getWorkOrders = {
+  recent: (params) => api.get('/work-orders/recent', { params }),
+  stats: (params) => api.get('/work-orders/stats', { params }),
 };
 
 // Report generation -- returns a Blob for browser download

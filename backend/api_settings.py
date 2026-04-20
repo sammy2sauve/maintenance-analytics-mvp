@@ -25,7 +25,9 @@ from .auth import (
     get_user_role_in_org,
 )
 from .adapter_maintainx import sync as mx_sync, mark_implemented_suggestions
+from .adapter_faciliworks import sync as fw_sync, mark_implemented_suggestions as fw_mark_implemented
 from .pipeline import run_pipeline
+from .api_alerts import check_and_fire_alerts
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 bearer = HTTPBearer()
@@ -125,6 +127,7 @@ def trigger_sync(
     inserted, updated = mx_sync(location_id=loc_id)
     pipeline_result = run_pipeline(verbose=False, location_id=loc_id)
     implemented = mark_implemented_suggestions(location_id=loc_id)
+    emails_sent = check_and_fire_alerts(loc_id)
     return {
         "inserted": inserted,
         "updated": updated,
@@ -132,4 +135,71 @@ def trigger_sync(
         "predictions_stored": pipeline_result.get("predictions_stored", 0),
         "insights_stored": pipeline_result.get("insights_stored", 0),
         "implemented": implemented,
+        "alerts_sent": emails_sent,
+    }
+
+
+# -- FaciliWorks endpoints -----------------------------------------------------
+
+class FaciliWorksKeyRequest(BaseModel):
+    base_url: str
+    api_key: str
+    location_id: int = None
+
+
+@router.post("/faciliworks-key")
+def save_fw_key(body: FaciliWorksKeyRequest, user_id: int = Depends(_current_user_id)):
+    if not body.api_key.strip():
+        raise HTTPException(400, "API key cannot be empty")
+    if not body.base_url.strip().startswith("http"):
+        raise HTTPException(400, "base_url must be a valid URL (e.g. https://demo.faciliworks.com)")
+    loc_id = _resolve_location(user_id, body.location_id)
+    _require_not_viewer(user_id, loc_id)
+    # Store combined as "base_url|||api_key" (encrypted at rest)
+    combined = f"{body.base_url.strip()}|||{body.api_key.strip()}"
+    save_location_api_key(loc_id, combined)
+    return {"connected": True, "location_id": loc_id}
+
+
+@router.get("/faciliworks-key")
+def fw_key_status(
+    location_id: int = Query(None),
+    user_id: int = Depends(_current_user_id),
+):
+    loc_id = _resolve_location(user_id, location_id)
+    return {"connected": location_has_api_key(loc_id), "location_id": loc_id}
+
+
+@router.delete("/faciliworks-key")
+def remove_fw_key(
+    location_id: int = Query(None),
+    user_id: int = Depends(_current_user_id),
+):
+    loc_id = _resolve_location(user_id, location_id)
+    _require_not_viewer(user_id, loc_id)
+    delete_location_api_key(loc_id)
+    return {"connected": False, "location_id": loc_id}
+
+
+@router.post("/faciliworks-sync")
+def trigger_fw_sync(
+    location_id: int = Query(None),
+    user_id: int = Depends(_current_user_id),
+):
+    loc_id = _resolve_location(user_id, location_id)
+    _require_not_viewer(user_id, loc_id)
+    if not location_has_api_key(loc_id):
+        raise HTTPException(400, "No FaciliWorks credentials stored for this location")
+    inserted, updated = fw_sync(location_id=loc_id)
+    pipeline_result = run_pipeline(verbose=False, location_id=loc_id)
+    implemented = fw_mark_implemented(location_id=loc_id)
+    emails_sent = check_and_fire_alerts(loc_id)
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "location_id": loc_id,
+        "predictions_stored": pipeline_result.get("predictions_stored", 0),
+        "insights_stored": pipeline_result.get("insights_stored", 0),
+        "implemented": implemented,
+        "alerts_sent": emails_sent,
     }

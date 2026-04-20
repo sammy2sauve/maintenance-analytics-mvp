@@ -189,6 +189,29 @@ CREATE INDEX IF NOT EXISTS idx_afp_date     ON asset_failure_predictions(predict
 CREATE INDEX IF NOT EXISTS idx_afp_risk     ON asset_failure_predictions(risk_level);
 CREATE INDEX IF NOT EXISTS idx_pms_asset    ON pm_optimization_suggestions(asset_id);
 CREATE INDEX IF NOT EXISTS idx_mi_type      ON maintenance_insights(insight_type);
+
+-- ── Email verification (added post-launch) ──────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified           BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token TEXT;
+
+-- ── Password reset ───────────────────────────────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token      TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ;
+
+-- ── Alert rules ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id            SERIAL PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    location_id   INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+    rule_key      TEXT NOT NULL,
+    threshold     REAL,
+    channel       TEXT NOT NULL DEFAULT 'Email',
+    frequency     TEXT NOT NULL DEFAULT 'Immediately',
+    enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+    last_fired_at TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, location_id, rule_key)
+);
 """
 
 

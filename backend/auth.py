@@ -2,7 +2,8 @@
 Auth utilities -- password hashing, JWT, and multi-tenant user/org/location queries.
 """
 
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import secrets
 
@@ -14,7 +15,7 @@ from .encryption import encrypt, decrypt
 from .neon import get_conn
 
 # -- Config -------------------------------------------------------------------
-SECRET_KEY = "truesignal-dev-secret-change-in-prod"
+SECRET_KEY = os.environ.get("SECRET_KEY", "truesignal-dev-secret-change-in-prod")
 ALGORITHM  = "HS256"
 TOKEN_EXPIRE_DAYS = 7
 
@@ -183,10 +184,12 @@ def delete_user_api_key(user_id: int) -> None:
 def create_user(name: str, email: str, password: str, org_name: str = None) -> dict:
     """
     Create a new user with org + location in one transaction.
+    Returns a verification_token that should be emailed to the user.
     """
     hashed = hash_password(password)
     if not org_name:
         org_name = f"{name}'s Organization"
+    verification_token = secrets.token_urlsafe(32)
 
     conn = _get_conn()
     cur = conn.cursor()
@@ -204,8 +207,9 @@ def create_user(name: str, email: str, password: str, org_name: str = None) -> d
 
         # Create user
         cur.execute(
-            "INSERT INTO users (name, email, hashed_password, org_id, role) VALUES (%s, %s, %s, %s, 'owner') RETURNING id",
-            (name, email, hashed, org_id)
+            """INSERT INTO users (name, email, hashed_password, org_id, role, email_verification_token)
+               VALUES (%s, %s, %s, %s, 'owner', %s) RETURNING id""",
+            (name, email, hashed, org_id, verification_token)
         )
         user_id = cur.fetchone()['id']
 
@@ -228,20 +232,23 @@ def create_user(name: str, email: str, password: str, org_name: str = None) -> d
         "email": email,
         "org_id": org_id,
         "location_id": location_id,
+        "verification_token": verification_token,
     }
 
 
 # -- Invite codes & team management ------------------------------------------
 
 def create_user_shell(name: str, email: str, password: str) -> dict:
-    """Create a bare user row with no org/location."""
+    """Create a bare user row with no org/location (invited user path)."""
     hashed = hash_password(password)
+    verification_token = secrets.token_urlsafe(32)
     conn = _get_conn()
     cur = conn.cursor()
     try:
         cur.execute(
-            "INSERT INTO users (name, email, hashed_password, role) VALUES (%s, %s, %s, 'member') RETURNING id",
-            (name, email, hashed)
+            """INSERT INTO users (name, email, hashed_password, role, email_verification_token)
+               VALUES (%s, %s, %s, 'member', %s) RETURNING id""",
+            (name, email, hashed, verification_token)
         )
         user_id = cur.fetchone()['id']
         conn.commit()
@@ -250,7 +257,7 @@ def create_user_shell(name: str, email: str, password: str) -> dict:
         raise
     finally:
         conn.close()
-    return {"id": user_id, "name": name, "email": email}
+    return {"id": user_id, "name": name, "email": email, "verification_token": verification_token}
 
 
 def create_invite_code(org_id: int, location_id: int, created_by: int,
@@ -336,6 +343,85 @@ def accept_invite_code(code: str, user_id: int) -> None:
         raise
     finally:
         conn.close()
+
+
+def create_password_reset_token(email: str) -> Optional[str]:
+    """
+    Generate a 1-hour password reset token for the given email.
+    Returns the token string, or None if the email doesn't exist.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    cur.execute(
+        "UPDATE users SET password_reset_token = %s, password_reset_expires_at = %s WHERE id = %s",
+        (token, expires, row["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return token
+
+
+def reset_password_with_token(token: str, new_password: str) -> Optional[dict]:
+    """
+    Validate a password reset token and set a new password.
+    Returns the user dict on success, None if the token is invalid/expired.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, email, password_reset_expires_at FROM users WHERE password_reset_token = %s",
+        (token,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    expires = row["password_reset_expires_at"]
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires:
+        conn.close()
+        return None  # expired
+    new_hash = hash_password(new_password)
+    cur.execute(
+        "UPDATE users SET hashed_password = %s, password_reset_token = NULL, password_reset_expires_at = NULL WHERE id = %s",
+        (new_hash, row["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": row["id"], "name": row["name"], "email": row["email"]}
+
+
+def verify_email_token(token: str) -> Optional[dict]:
+    """
+    Look up user by verification token, mark as verified, clear the token.
+    Returns the user dict on success, None if token is invalid.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, email FROM users WHERE email_verification_token = %s",
+        (token,)
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    user = dict(row)
+    cur.execute(
+        "UPDATE users SET email_verified = TRUE, email_verification_token = NULL WHERE id = %s",
+        (user['id'],)
+    )
+    conn.commit()
+    conn.close()
+    return user
 
 
 def get_user_role_in_org(user_id: int, org_id: int) -> Optional[str]:

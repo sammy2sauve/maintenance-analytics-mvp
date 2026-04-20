@@ -1,14 +1,48 @@
 import { useState, useEffect } from 'react';
-import { getPredictions, getKPIs } from '../services/api';
-import { AlertCircle, Wrench, Activity, FileText, Bell } from 'lucide-react';
+import { getPredictions, getKPIs, getWorkOrders } from '../services/api';
+import { AlertCircle, Wrench, ClipboardList, CheckCircle2, TrendingUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import EmptyState from '../components/EmptyState';
-import GenerateReportDrawer from '../components/GenerateReportDrawer';
-import NotifyMeDrawer from '../components/NotifyMeDrawer';
 import {
   PieChart, Pie, Cell,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
+
+const STATUS_STYLES = {
+  Completed:   { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+  completed:   { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+  Open:        { dot: 'bg-indigo-400',  text: 'text-indigo-400'  },
+  open:        { dot: 'bg-indigo-400',  text: 'text-indigo-400'  },
+  'In Progress':{ dot: 'bg-amber-400', text: 'text-amber-400'   },
+  Overdue:     { dot: 'bg-red-400',    text: 'text-red-400'     },
+};
+
+function RecentActivity({ workOrders }) {
+  return (
+    <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300 flex flex-col h-full">
+      <h2 className="text-sm font-semibold text-white mb-2">Recent Activity</h2>
+      {workOrders.length === 0 ? (
+        <div className="flex items-center justify-center flex-1 text-slate-500 text-xs">No work orders found</div>
+      ) : (
+        <div className="space-y-1.5 overflow-y-auto flex-1 pr-2">
+          {workOrders.map((wo, i) => {
+            const style = STATUS_STYLES[wo.status] || { dot: 'bg-slate-400', text: 'text-slate-400' };
+            const date = wo.completion_date || wo.creation_date;
+            const dateStr = date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+            return (
+              <div key={i} className="flex items-center gap-2 py-1 border-b border-slate-700/30 last:border-0">
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />
+                <span className="text-xs text-slate-300 font-medium truncate flex-1">{wo.asset_id}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded bg-slate-800 ${style.text} flex-shrink-0`}>{wo.status}</span>
+                <span className="text-[10px] text-slate-500 flex-shrink-0 w-14 text-right">{dateStr}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const RISK_COLORS = {
   LOW: '#34d399',
@@ -17,18 +51,18 @@ const RISK_COLORS = {
   CRITICAL: '#f87171',
 };
 
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, subtitle, icon, color }) {
   const gradients = {
-    blue: 'from-blue-600 to-cyan-500',
-    red: 'from-red-600 to-rose-500',
-    orange: 'from-orange-500 to-amber-400',
-    green: 'from-emerald-600 to-teal-500',
+    blue:   'from-blue-600 to-cyan-500',
+    indigo: 'from-indigo-600 to-violet-500',
+    green:  'from-emerald-600 to-teal-500',
+    amber:  'from-amber-500 to-orange-400',
   };
   const glows = {
-    blue: 'shadow-blue-500/20',
-    red: 'shadow-red-500/20',
-    orange: 'shadow-orange-500/20',
-    green: 'shadow-emerald-500/20',
+    blue:   'shadow-blue-500/20',
+    indigo: 'shadow-indigo-500/20',
+    green:  'shadow-emerald-500/20',
+    amber:  'shadow-amber-500/20',
   };
 
   return (
@@ -37,6 +71,7 @@ function StatCard({ title, value, icon, color }) {
         <div>
           <p className="text-xs font-medium text-white/70 uppercase tracking-wide">{title}</p>
           <p className="text-2xl font-bold text-white mt-1">{value}</p>
+          {subtitle && <p className="text-xs text-white/60 mt-0.5">{subtitle}</p>}
         </div>
         <div className="bg-white/20 p-2 rounded">
           <div className="text-white">{icon}</div>
@@ -100,7 +135,7 @@ function MaintenanceHealthGauge({ summary, kpis }) {
     <div className={`bg-gradient-to-br ${zone.bg} backdrop-blur-sm border ${zone.border} rounded-2xl p-3 shadow-2xl transition-all duration-300`} style={{ height: '250px', overflow: 'hidden' }}>
       <h2 className="text-sm font-semibold text-white mb-1">Maintenance Health</h2>
       <div className="flex flex-col items-center w-full">
-        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block', maxHeight: '130px' }}>
+        <svg width="100%" viewBox="0 0 400 200" style={{ display: 'block', maxHeight: '95px' }}>
           <path d={arcPath(0, 180, innerR, outerR)} fill="#1e293b" stroke="#000" strokeWidth="3" />
           <path d={arcPath(108, 180, innerR + 1, outerR - 1)} fill="#ef4444" opacity="0.9" stroke="#000" strokeWidth="2" />
           <path d={arcPath(54, 108, innerR + 1, outerR - 1)} fill="#f59e0b" opacity="0.9" stroke="#000" strokeWidth="2" />
@@ -113,13 +148,17 @@ function MaintenanceHealthGauge({ summary, kpis }) {
           <circle cx={cx} cy={cy} r="16" fill="#1e293b" stroke="#000" strokeWidth="3" />
           <circle cx={cx} cy={cy} r="9" fill={zone.color} stroke="#000" strokeWidth="1.5" />
         </svg>
-        <div className="text-center mt-1">
+        <div className="text-center mt-0.5">
           <div className="text-3xl font-bold text-white leading-none">{score}</div>
-          <div className="text-sm font-bold mt-1" style={{ color: zone.color }}>{zone.label}</div>
+          <div className="text-sm font-bold mt-0.5" style={{ color: zone.color }}>{zone.label}</div>
         </div>
-        <div className="flex gap-3 mt-2 text-xs text-slate-400">
-          <span>Crit: <span className="text-red-400 font-semibold">-{criticalCount * 3}</span></span>
-          <span>High: <span className="text-orange-400 font-semibold">-{highCount}</span></span>
+        <div className="w-full mt-1 border-t border-slate-700/40 pt-1 text-center">
+          <div className="text-[10px] text-slate-400 leading-tight">
+            Starts at 50. <span className="text-red-400">Critical</span> assets cost 3 pts each, <span className="text-orange-400">high-risk</span> assets 1 pt. Strong PM compliance adds up to 5 pts.
+          </div>
+          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+            S = 50 − 3<span className="text-red-400">C</span> − <span className="text-orange-400">H</span> + <span className="text-emerald-400">PM</span>
+          </div>
         </div>
       </div>
     </div>
@@ -200,8 +239,8 @@ export default function Overview({ dateRange }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [dailyKPIs, setDailyKPIs] = useState([]);
   const [failurePredictions, setFailurePredictions] = useState([]);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [recentWOs, setRecentWOs] = useState([]);
+  const [woStats, setWoStats] = useState({ open_count: 0, pm_compliance_pct: 0, reactive_rate_pct: 0 });
 
   const load = async () => {
     try {
@@ -210,10 +249,12 @@ export default function Overview({ dateRange }) {
 
       const timeParams = dateRange ? { days: dateRange } : {};
       const locParam = locationId ? { location_id: locationId } : {};
-      const [dashboardRes, kpisRes, predictionsRes] = await Promise.all([
+      const [dashboardRes, kpisRes, predictionsRes, woRes, woStatsRes] = await Promise.all([
         getPredictions.dashboard(),
         getKPIs.daily({ limit: 100, ...timeParams, ...locParam }),
         getPredictions.failures({ limit: 1000, ...timeParams, ...locParam }),
+        getWorkOrders.recent({ limit: 8, ...locParam }),
+        getWorkOrders.stats({ ...locParam }),
       ]);
 
       setDashboardData(dashboardRes.data);
@@ -234,6 +275,8 @@ export default function Overview({ dateRange }) {
         }
       });
       setFailurePredictions(Array.from(latestByAsset.values()));
+      setRecentWOs(woRes.data || []);
+      setWoStats(woStatsRes.data || { open_count: 0, pm_compliance_pct: 0, reactive_rate_pct: 0 });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -315,91 +358,29 @@ export default function Overview({ dateRange }) {
 
   return (
     <main className="w-full px-4 py-4 h-full overflow-y-auto">
-      <GenerateReportDrawer
-        open={reportOpen}
-        onClose={() => setReportOpen(false)}
-        pageSections={{ overview: true, asset_health: true, critical_assets: true, insights: true }}
-      />
-      <NotifyMeDrawer
-        open={notifyOpen}
-        onClose={() => setNotifyOpen(false)}
-        page="overview"
-      />
-
-      {/* Page toolbar */}
-      <div className="flex items-center justify-end gap-2 mb-3">
-        <button
-          onClick={() => setNotifyOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-amber-500/50 transition-colors"
-        >
-          <Bell className="w-3.5 h-3.5" />
-          Notify Me
-        </button>
-        <button
-          onClick={() => setReportOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-indigo-500/50 transition-colors"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          Generate Report
-        </button>
-      </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} icon={<Wrench className="w-5 h-5" />} color="blue" />
-        <StatCard title="High Risk Assets" value={filteredSummary.high_risk_assets} icon={<AlertCircle className="w-5 h-5" />} color="red" />
-        <StatCard title="Critical Risk" value={filteredSummary.critical_risk_assets} icon={<Activity className="w-5 h-5" />} color="orange" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <StatCard title="Total Assets" value={filteredSummary.total_assets_monitored} subtitle="monitored" icon={<Wrench className="w-5 h-5" />} color="blue" />
+        <StatCard title="Open Work Orders" value={woStats.open_count} subtitle="awaiting action" icon={<ClipboardList className="w-5 h-5" />} color="indigo" />
+        <StatCard title="PM Compliance" value={`${woStats.pm_compliance_pct}%`} subtitle="preventive WOs closed" icon={<CheckCircle2 className="w-5 h-5" />} color="green" />
+        <StatCard title="Reactive Work Rate" value={`${woStats.reactive_rate_pct}%`} subtitle="corrective vs total" icon={<TrendingUp className="w-5 h-5" />} color="amber" />
       </div>
 
-      {/* Charts Row: Risk Distribution + Health Gauge + KPI Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-4 shadow-2xl hover:border-indigo-500/30 transition-all duration-300" style={{ height: '250px', overflow: 'hidden' }}>
-          <h2 className="text-sm font-semibold text-white mb-2">Risk Distribution</h2>
-          {riskDistData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie
-                  data={riskDistData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={65}
-                  isAnimationActive={true}
-                  animationDuration={800}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: '#94a3b8' }}
-                >
-                  {riskDistData.map(entry => (
-                    <Cell key={entry.name} fill={RISK_COLORS[entry.name] || '#94a3b8'} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    return (
-                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
-                        <p className="font-semibold text-white mb-1">{payload[0].name}</p>
-                        <p className="text-slate-300">{payload[0].value} assets</p>
-                      </div>
-                    );
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-40 text-slate-500 text-sm">
-              No prediction data — run the pipeline first
-            </div>
-          )}
+      {/* Main content: left stack + right Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+        {/* Left: Gauge + KPIs + Insights stacked */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <MaintenanceHealthGauge summary={filteredSummary} kpis={dailyKPIs} />
+            <CompactKPITable kpis={dailyKPIs} />
+          </div>
+          <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
         </div>
 
-        <MaintenanceHealthGauge summary={filteredSummary} kpis={dailyKPIs} />
-        <CompactKPITable kpis={dailyKPIs} />
+        {/* Right: Recent Activity full height */}
+        <RecentActivity workOrders={recentWOs} />
       </div>
-
-      {/* Insights Preview */}
-      <InsightsPreview insights={filteredInsights} onExport={exportInsightsCSV} />
     </main>
   );
 }

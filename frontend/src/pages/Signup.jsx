@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { ArrowLeft } from 'lucide-react';
 
 function TrueSignalMark() {
   return (
@@ -78,6 +79,13 @@ export default function Signup() {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
+
+        {/* Back to home */}
+        <Link to="/" className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-6 w-fit">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to home
+        </Link>
+
         <TrueSignalMark />
 
         <div className="bg-slate-900 border border-slate-700/50 rounded-2xl p-8 shadow-2xl">

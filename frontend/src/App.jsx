@@ -7,13 +7,16 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Overview from './pages/Overview';
 import AssetHealth from './pages/AssetHealth';
-import Reports from './pages/Reports';
+import PMPlanner from './pages/PMPlanner';
 import Help from './pages/Help';
 import Settings from './pages/Settings';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import './App.css';
 
 // Pages where the date slicer doesn't apply
-const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/reports', '/dashboard/settings', '/dashboard/help'];
+const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/pm-planner', '/dashboard/settings', '/dashboard/help'];
 
 function TrueSignalLogo() {
   return (
@@ -142,8 +145,8 @@ function Dashboard() {
       <div className="flex-1 overflow-hidden">
         <Routes>
           <Route path="/"        element={<Overview dateRange={dateRange} />} />
-          <Route path="/assets"   element={<AssetHealth />} />
-          <Route path="/reports"  element={<Reports />} />
+          <Route path="/assets"      element={<AssetHealth />} />
+          <Route path="/pm-planner"  element={<PMPlanner />} />
           <Route path="/help"     element={<Help />} />
           <Route path="/settings" element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
           <Route path="*" element={<Navigate to="/dashboard/" replace />} />
@@ -159,8 +162,11 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/"        element={<Landing />} />
-          <Route path="/login"   element={<Login />} />
-          <Route path="/signup"  element={<Signup />} />
+          <Route path="/login"        element={<Login />} />
+          <Route path="/signup"       element={<Signup />} />
+          <Route path="/verify-email"    element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/dashboard/*" element={
             <ProtectedRoute>
               <Dashboard />

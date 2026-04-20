@@ -3,6 +3,7 @@ Prediction storage module — persists prediction results to Neon (PostgreSQL).
 """
 
 import psycopg2
+import psycopg2.extras
 from typing import Optional, Dict, Any
 from datetime import datetime
 import pandas as pd
@@ -234,9 +235,12 @@ def retrieve_failure_predictions(
         query += " ORDER BY failure_probability DESC, prediction_date DESC LIMIT %s"
         params.append(limit)
 
-        df = pd.read_sql_query(query, conn, params=params)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, params)
+        rows = cur.fetchall()
         conn.close()
 
+        df = pd.DataFrame([dict(r) for r in rows]) if rows else pd.DataFrame()
         for col in df.select_dtypes(include=['float64', 'int64']).columns:
             df[col] = df[col].astype(object)
         df = df.where(df.notna(), None)
@@ -274,9 +278,12 @@ def retrieve_pm_optimization_suggestions(
         query += " ORDER BY estimated_cost_savings DESC, suggestion_date DESC LIMIT %s"
         params.append(limit)
 
-        df = pd.read_sql_query(query, conn, params=params)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, params)
+        rows = cur.fetchall()
         conn.close()
 
+        df = pd.DataFrame([dict(r) for r in rows]) if rows else pd.DataFrame()
         for col in df.select_dtypes(include=['float64', 'int64']).columns:
             df[col] = df[col].astype(object)
         df = df.where(df.notna(), None)
@@ -310,9 +317,12 @@ def retrieve_maintenance_insights(
         query += " ORDER BY insight_date DESC, confidence_score DESC LIMIT %s"
         params.append(limit)
 
-        df = pd.read_sql_query(query, conn, params=params)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, params)
+        rows = cur.fetchall()
         conn.close()
 
+        df = pd.DataFrame([dict(r) for r in rows]) if rows else pd.DataFrame()
         for col in df.select_dtypes(include=['float64', 'int64']).columns:
             df[col] = df[col].astype(object)
         df = df.where(df.notna(), None)

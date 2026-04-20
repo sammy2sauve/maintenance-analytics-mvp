@@ -17,7 +17,11 @@ from .auth import (
     create_token,
     decode_token,
     get_user_locations,
+    verify_email_token,
+    create_password_reset_token,
+    reset_password_with_token,
 )
+from .email_service import send_verification_email, send_welcome_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 bearer = HTTPBearer()
@@ -35,6 +39,13 @@ class SignupRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email:    EmailStr
+    password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token:    str
     password: str
 
 class AuthResponse(BaseModel):
@@ -61,6 +72,9 @@ def signup(body: SignupRequest):
     else:
         user = create_user(body.name, body.email, body.password, org_name=body.org_name)
 
+    # Send verification email (non-blocking — don't fail signup if email fails)
+    send_verification_email(user["email"], user["name"], user["verification_token"])
+
     token = create_token(user["id"], user["email"])
     locations = get_user_locations(user["id"])
     return {
@@ -73,6 +87,36 @@ def signup(body: SignupRequest):
             "locations": locations,
         },
     }
+
+
+@router.get("/verify-email")
+def verify_email(token: str):
+    user = verify_email_token(token)
+    if not user:
+        raise HTTPException(400, "Invalid or expired verification link")
+    # Send welcome email after verification
+    send_welcome_email(user["email"], user["name"])
+    return {"message": "Email verified successfully"}
+
+
+@router.post("/forgot-password")
+def forgot_password(body: ForgotPasswordRequest):
+    token = create_password_reset_token(body.email)
+    if token:
+        user = get_user_by_email(body.email)
+        send_password_reset_email(body.email, user["name"], token)
+    # Always return 200 — don't leak whether the email exists
+    return {"message": "If an account exists for that email, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordRequest):
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    user = reset_password_with_token(body.token, body.password)
+    if not user:
+        raise HTTPException(400, "Reset link is invalid or has expired. Please request a new one.")
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/login", response_model=AuthResponse)

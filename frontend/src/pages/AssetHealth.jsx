@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getPredictions } from '../services/api';
-import { AlertCircle, FileText, Bell } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import EmptyState from '../components/EmptyState';
-import GenerateReportDrawer from '../components/GenerateReportDrawer';
-import NotifyMeDrawer from '../components/NotifyMeDrawer';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const RISK_COLORS  = { LOW: '#34d399', MEDIUM: '#fbbf24', HIGH: '#fb923c', CRITICAL: '#f87171' };
@@ -94,8 +92,6 @@ export default function AssetHealth({ dateRange }) {
   const [error, setError]         = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [search, setSearch]       = useState('');
-  const [reportOpen, setReportOpen] = useState(false);
-  const [notifyOpen, setNotifyOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -178,7 +174,7 @@ export default function AssetHealth({ dateRange }) {
   const histData = URGENCY_BUCKETS.map(b => ({
     label: b.label,
     count: filtered.filter(p => {
-      const days = p.days_to_predicted_failure ?? 999;
+      const days = (p.days_to_predicted_failure == null || p.days_to_predicted_failure === 0) ? 999 : p.days_to_predicted_failure;
       return days >= b.min && days <= b.max;
     }).length,
     color: b.color,
@@ -204,16 +200,6 @@ export default function AssetHealth({ dateRange }) {
 
   return (
     <div className="flex flex-col h-full px-4 py-3">
-      <GenerateReportDrawer
-        open={reportOpen}
-        onClose={() => setReportOpen(false)}
-        pageSections={{ asset_health: true, critical_assets: true, pm_suggestions: false, insights: false }}
-      />
-      <NotifyMeDrawer
-        open={notifyOpen}
-        onClose={() => setNotifyOpen(false)}
-        page="asset_health"
-      />
 
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
@@ -230,20 +216,6 @@ export default function AssetHealth({ dateRange }) {
           <button onClick={exportCSV}
             className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-2 py-1 rounded">
             Export CSV
-          </button>
-          <button
-            onClick={() => setNotifyOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-amber-500/50 px-2 py-1 rounded transition-colors"
-          >
-            <Bell className="w-3 h-3" />
-            Notify Me
-          </button>
-          <button
-            onClick={() => setReportOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-indigo-500/50 px-2 py-1 rounded transition-colors"
-          >
-            <FileText className="w-3 h-3" />
-            Report
           </button>
         </div>
       </div>
@@ -277,7 +249,7 @@ export default function AssetHealth({ dateRange }) {
                   <p className="text-xs font-semibold text-white leading-none">{a.assetId}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-[10px] font-medium" style={{ color: RISK_COLORS[a.riskLevel] }}>{a.riskLevel}</span>
-                    {a.days != null && <span className="text-[10px] text-slate-400">{a.days}d</span>}
+                    {a.days != null && a.days > 0 && <span className="text-[10px] text-slate-400">{a.days}d</span>}
                     <span className="text-[10px] text-slate-500">{a.prob}%</span>
                   </div>
                 </div>

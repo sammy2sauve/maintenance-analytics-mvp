@@ -26,7 +26,7 @@ export default function Nav({ basePath = '' }) {
         <div className="flex">
           <NavLink to={`${basePath}/`} end className={linkClass}>Overview</NavLink>
           <NavLink to={`${basePath}/assets`} className={linkClass}>Asset Health</NavLink>
-          <NavLink to={`${basePath}/reports`} className={linkClass}>Reports &amp; Alerts</NavLink>
+          <NavLink to={`${basePath}/pm-planner`} className={linkClass}>PM Planner</NavLink>
           {isOwnerOrAdmin && (
             <NavLink to={`${basePath}/settings`} className={linkClass}>Settings</NavLink>
           )}

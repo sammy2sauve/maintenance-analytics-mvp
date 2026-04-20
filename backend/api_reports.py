@@ -1172,6 +1172,119 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
 
     period_label = f"Last {days} days" if days else "All time"
 
+    # ── Graphic helpers (defined before _draw_page so closures work) ──────────
+    def _make_gauge(health_score, W, H):
+        """Semicircle fleet health gauge — thick ring via Polygon math."""
+        import math
+        from reportlab.graphics.shapes import Polygon, Circle as GCircle, String as GStr
+        d  = Drawing(W, H)
+        cx = W / 2
+        cy = H * 0.10
+        r  = min(W / 2 - 12, H - cy - 8)
+        sw = 14          # ring thickness
+        ro = r           # outer radius
+        ri = r - sw      # inner radius
+        N  = 60          # polygon segments per arc
+
+        def _ring_pts(cx, cy, ro, ri, a0_deg, a1_deg, n):
+            """Return flat [x,y,...] for a filled ring segment (polygon)."""
+            pts = []
+            for i in range(n + 1):
+                a = math.radians(a0_deg + (a1_deg - a0_deg) * i / n)
+                pts += [cx + ro * math.cos(a), cy + ro * math.sin(a)]
+            for i in range(n + 1):
+                a = math.radians(a1_deg + (a0_deg - a1_deg) * i / n)
+                pts += [cx + ri * math.cos(a), cy + ri * math.sin(a)]
+            return pts
+
+        # Background ring: 0°→180° (right → left in standard math)
+        bg_pts = _ring_pts(cx, cy, ro, ri, 0, 180, N)
+        bg = Polygon(bg_pts)
+        bg.fillColor   = _hex("#334155")
+        bg.strokeColor = None
+        d.add(bg)
+
+        # Score ring
+        if health_score > 0.005:
+            if health_score >= 0.75:   hc = _hex(EMERALD)
+            elif health_score >= 0.5:  hc = _hex("#f59e0b")
+            elif health_score >= 0.3:  hc = _hex("#f97316")
+            else:                      hc = _hex("#ef4444")
+            extent = health_score * 180
+            fg_pts = _ring_pts(cx, cy, ro, ri, 0, extent, N)
+            fg = Polygon(fg_pts)
+            fg.fillColor   = hc
+            fg.strokeColor = None
+            d.add(fg)
+            # Tip dot at leading edge
+            tip_a = math.radians(extent)
+            tip_r = (ro + ri) / 2
+            tip = GCircle(cx + tip_r * math.cos(tip_a), cy + tip_r * math.sin(tip_a), sw / 2 + 1)
+            tip.fillColor   = hc
+            tip.strokeColor = None
+            d.add(tip)
+
+        # Centre labels
+        pct = int(round(health_score * 100))
+        d.add(GStr(cx, cy + r * 0.40, f"{pct}%",
+                   fontSize=22, fontName="Helvetica-Bold",
+                   fillColor=colors.white, textAnchor="middle"))
+        d.add(GStr(cx, cy + r * 0.40 - 18, "FLEET HEALTH",
+                   fontSize=6.5, fontName="Helvetica-Bold",
+                   fillColor=_hex("#94a3b8"), textAnchor="middle"))
+        # End labels
+        d.add(GStr(cx - r - 2, cy - 10, "0%",
+                   fontSize=6, fillColor=_hex("#475569"), textAnchor="middle"))
+        d.add(GStr(cx + r + 2, cy - 10, "100%",
+                   fontSize=6, fillColor=_hex("#475569"), textAnchor="middle"))
+        return d
+
+    def _make_donut(counts, total, W, H):
+        """Risk distribution donut chart with center label."""
+        from reportlab.graphics.charts.piecharts import Pie
+        from reportlab.graphics.shapes import Circle as DCircle, String as DStr
+        d  = Drawing(W, H)
+        r  = min(W, H) * 0.36
+        cx = W / 2
+        cy = H * 0.52
+        pie = Pie()
+        pie.x      = cx - r
+        pie.y      = cy - r
+        pie.width  = pie.height = r * 2
+        safe_data  = [max(counts[rl], 0.001) for rl in ["CRITICAL","HIGH","MEDIUM","LOW"]]
+        pie.data   = safe_data
+        for i, rl in enumerate(["CRITICAL","HIGH","MEDIUM","LOW"]):
+            pie.slices[i].fillColor   = risk_c[rl]
+            pie.slices[i].strokeColor = _hex("#0f172a")
+            pie.slices[i].strokeWidth = 1.5
+        pie.startAngle = 90
+        pie.direction  = "clockwise"
+        d.add(pie)
+        # Donut hole
+        hole = DCircle(cx, cy, r * 0.52)
+        hole.fillColor   = _hex("#0f172a")
+        hole.strokeColor = None
+        d.add(hole)
+        # Center: total assets
+        d.add(DStr(cx, cy + 3, str(total),
+                   fontSize=16, fontName="Helvetica-Bold",
+                   fillColor=colors.white, textAnchor="middle"))
+        d.add(DStr(cx, cy - 12, "ASSETS",
+                   fontSize=6.5, fontName="Helvetica-Bold",
+                   fillColor=_hex("#94a3b8"), textAnchor="middle"))
+        # Legend row at bottom
+        leg_y  = H * 0.06
+        slot_w = W / 4
+        for i, rl in enumerate(["CRITICAL","HIGH","MEDIUM","LOW"]):
+            lx = slot_w * i + slot_w / 2
+            d.add(DStr(lx, leg_y, f"{counts[rl]}",
+                       fontSize=7.5, fontName="Helvetica-Bold",
+                       fillColor=_hex(RISK_COLORS[rl]), textAnchor="middle"))
+            d.add(DStr(lx, leg_y - 10, rl[:3],
+                       fontSize=6, fontName="Helvetica",
+                       fillColor=_hex("#64748b"), textAnchor="middle"))
+        return d
+
     # ── Canvas: full dark page, branded header + footer ───────────────────────
     def _draw_page(canvas, doc):
         canvas.saveState()
@@ -1223,9 +1336,9 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     data   = _fetch_data(["overview","asset_health","pm_suggestions","insights"], days, location_id)
     preds, counts, avg_score = _overview_stats(data)
     total  = len(preds)
-    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL","HIGH")][:9]
-    pms    = (data.get("pm_suggestions") or [])[:5]
-    ins    = (data.get("insights") or [])[:4]
+    urgent = [p for p in preds if p.get("risk_level") in ("CRITICAL","HIGH")][:6]
+    pms    = (data.get("pm_suggestions") or [])[:4]
+    ins    = (data.get("insights") or [])[:3]
     pm_pending = sum(1 for p in (data.get("pm_suggestions") or [])
                      if (p.get("status") or "pending").lower() == "pending")
     org_name = _get_org_name(location_id).replace("-", " ").title()
@@ -1316,19 +1429,33 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ("VALIGN",        (0,0),(-1,-1), "TOP"),
     ]))
 
-    # ── Stats strip — 3 big stats, slate-800 card ─────────────────────────────
-    # SW=180, SL=SR=14 → S_INN=152
-    SW, SL, SR = CW / 3, 14, 14   # 180, 14, 14
-    S_INN = SW - SL - SR           # 152
+    # ── Visual row — 3 columns: Gauge | Donut | Stats ────────────────────────
+    # Each col outer=180pt. LEFTPAD=RIGHTPAD=8 → inner=164pt (VIS_INN)
+    VIS_COL = CW / 3    # 180
+    VIS_P   = 8
+    VIS_INN = VIS_COL - VIS_P * 2   # 164
+    VIS_H   = 120        # drawing height for gauge + donut
 
-    def stat_cell(big, label):
+    prob_str     = f"{avg_score*100:.1f}%" if avg_score else "—"
+    health_score = max(0.0, 1.0 - (avg_score or 0))
+
+    gauge_d  = _make_gauge(health_score, VIS_INN, VIS_H)
+    donut_d  = _make_donut(counts, total, VIS_INN, VIS_H)
+
+    # Stats column: 3 metrics stacked in slate-800 cells
+    # Each stat cell inner width = VIS_INN - SL - SR = 164 - 10 - 10 = 144
+    _SSL, _SSR = 10, 10
+    _SS_INN    = VIS_INN - _SSL - _SSR   # 144
+
+    def stat_cell(big, label, color=None):
+        tc = color or CL["ind"]
         t = Table([
-            [Paragraph(big,   ps(f"SBN_{big}",  fontName="Helvetica-Bold", fontSize=20,
-                                  textColor=CL["ind"], leading=22, alignment=TA_CENTER))],
-            [Paragraph(label, ps(f"SBL_{label}", fontSize=7, fontName="Helvetica-Bold",
-                                  textColor=CL["s400"], leading=9, alignment=TA_CENTER,
+            [Paragraph(big,   ps(f"SN_{big}",  fontName="Helvetica-Bold", fontSize=18,
+                                  textColor=tc, leading=20, alignment=TA_CENTER))],
+            [Paragraph(label, ps(f"SL_{label}", fontSize=6.5, fontName="Helvetica-Bold",
+                                  textColor=CL["s400"], leading=8, alignment=TA_CENTER,
                                   letterSpacing=0.8))],
-        ], colWidths=[S_INN])
+        ], colWidths=[_SS_INN])
         t.setStyle(TableStyle([
             ("TOPPADDING",    (0,0),(-1,-1), 0),
             ("BOTTOMPADDING", (0,0),(-1,-1), 0),
@@ -1337,24 +1464,78 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         ]))
         return t
 
-    prob_str  = f"{avg_score*100:.1f}%" if avg_score else "—"
-    stats_row = Table([[
-        stat_cell(str(total),      "ASSETS MONITORED"),
-        stat_cell(prob_str,        "AVG FAILURE PROB"),
-        stat_cell(str(pm_pending), "OPEN PM RECS"),
-    ]], colWidths=[SW]*3)
-    stats_row.setStyle(TableStyle([
+    # Wrap each stat in a card row with background
+    def stat_card_row(big, label, color=None):
+        inner = stat_cell(big, label, color)
+        row = Table([[inner]], colWidths=[VIS_INN])
+        row.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
+            ("TOPPADDING",    (0,0),(-1,-1), 12),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 12),
+            ("LEFTPADDING",   (0,0),(-1,-1), _SSL),
+            ("RIGHTPADDING",  (0,0),(-1,-1), _SSR),
+        ]))
+        return row
+
+    crit_high = counts["CRITICAL"] + counts["HIGH"]
+    ch_color  = risk_c["CRITICAL"] if counts["CRITICAL"] else risk_c["HIGH"] if counts["HIGH"] else CL["ind"]
+
+    stats_col = Table([
+        [stat_card_row(str(total),      "ASSETS MONITORED")],
+        [Spacer(1, 4)],
+        [stat_card_row(prob_str,        "AVG FAILURE PROB",
+                       _hex("#f97316") if (avg_score or 0) > 0.5 else CL["ind"])],
+        [Spacer(1, 4)],
+        [stat_card_row(str(crit_high),  "CRITICAL / HIGH RISK", ch_color)],
+    ], colWidths=[VIS_INN])
+    stats_col.setStyle(TableStyle([
+        ("TOPPADDING",    (0,0),(-1,-1), 0),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+        ("LEFTPADDING",   (0,0),(-1,-1), 0),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+    ]))
+
+    # Section label helper for the visual col headers
+    def vis_label(txt):
+        return Paragraph(txt.upper(),
+                         ps(f"VL_{txt[:6]}", fontSize=6.5, fontName="Helvetica-Bold",
+                            textColor=CL["s500"], leading=8, alignment=TA_CENTER,
+                            letterSpacing=1.0))
+
+    def vis_col(drawing, label_txt):
+        t = Table([
+            [vis_label(label_txt)],
+            [Spacer(1, 4)],
+            [drawing],
+        ], colWidths=[VIS_INN])
+        t.setStyle(TableStyle([
+            ("TOPPADDING",    (0,0),(-1,-1), 0),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 0),
+            ("LEFTPADDING",   (0,0),(-1,-1), 0),
+            ("RIGHTPADDING",  (0,0),(-1,-1), 0),
+            ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ]))
+        return t
+
+    vis_row = Table([[
+        vis_col(gauge_d,  "Fleet Health Score"),
+        vis_col(donut_d,  "Risk Distribution"),
+        stats_col,
+    ]], colWidths=[VIS_COL]*3)
+    vis_row.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,-1), CL["card"]),
-        ("TOPPADDING",    (0,0),(-1,-1), 12),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 12),
-        ("LEFTPADDING",   (0,0),(0,0),   SL),
-        ("RIGHTPADDING",  (0,0),(0,0),   SR),
-        ("LEFTPADDING",   (1,0),(1,0),   SL),
-        ("RIGHTPADDING",  (1,0),(1,0),   SR),
-        ("LEFTPADDING",   (2,0),(2,0),   SL),
-        ("RIGHTPADDING",  (2,0),(2,0),   SR),
-        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("TOPPADDING",    (0,0),(-1,-1), 10),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 10),
+        ("LEFTPADDING",   (0,0),(0,0),   VIS_P),
+        ("RIGHTPADDING",  (0,0),(0,0),   VIS_P),
+        ("LEFTPADDING",   (1,0),(1,0),   VIS_P),
+        ("RIGHTPADDING",  (1,0),(1,0),   VIS_P),
+        ("LEFTPADDING",   (2,0),(2,0),   VIS_P),
+        ("RIGHTPADDING",  (2,0),(2,0),   VIS_P),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
         ("LINEBEFORE",    (1,0),(2,-1),  0.5, CL["s700"]),
+        ("LINEBEFORE",    (2,0),(2,-1),  0.5, CL["s700"]),
     ]))
 
     # ── Narrative block — executive summary text ──────────────────────────────
@@ -1593,7 +1774,7 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
     ]
     # Each cell in the facility strip: SW=180, padded SL=SR=14 → inner=152
     # But we're placing 3 cells with width CW/3=180 each, all inner text fits in 152pt
-    fac_strip = Table([fac_cells], colWidths=[SW]*3)
+    fac_strip = Table([fac_cells], colWidths=[CW / 3] * 3)
     fac_strip.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,-1), colors.HexColor("#172030")),
         ("TOPPADDING",    (0,0),(-1,-1), 9),
@@ -1618,7 +1799,7 @@ def _generate_summary_pdf(sections: List[str], days: Optional[int], location_id:
         Spacer(1, 10),
         kpi_grid,
         Spacer(1, 10),
-        stats_row,
+        vis_row,
         Spacer(1, 10),
         narr_block,
         Spacer(1, 14),

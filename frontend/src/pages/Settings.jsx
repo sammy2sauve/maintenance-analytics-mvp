@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Copy, Check, Users } from 'lucide-react';
+import { Copy, Check, Users, Bell, RefreshCw, Unlink, Link } from 'lucide-react';
 
-const API = 'http://localhost:8000';
 
 function authHeaders() {
   const token = localStorage.getItem('ts_token');
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
+
 
 function RoleBadge({ role }) {
   const styles = {
@@ -230,178 +230,267 @@ function TeamSection({ currentUserId, currentUserRole }) {
   );
 }
 
-export default function Settings() {
-  const { refreshLocation, user, role, isOwnerOrAdmin } = useAuth();
-  const [connected, setConnected] = useState(null);
-  const [apiKey, setApiKey]       = useState('');
-  const [saving, setSaving]       = useState(false);
-  const [removing, setRemoving]   = useState(false);
-  const [syncing, setSyncing]     = useState(false);
-  const [error, setError]         = useState('');
-  const [success, setSuccess]     = useState('');
+const SETTINGS_ALERT_RULES = [
+  { key: 'any_critical',  label: 'Critical asset detected',         description: 'Alert when any asset reaches CRITICAL risk level' },
+  { key: 'high_count',    label: 'High risk spike',                  description: 'Alert when HIGH+CRITICAL assets exceed 5' },
+  { key: 'no_wo_days',    label: 'Asset with no maintenance 90+ days', description: 'Alert when an asset has no work order for 90+ days' },
+  { key: 'savings_opportunity', label: 'Savings opportunity > $10k', description: 'Alert when total PM savings opportunity exceeds $10,000' },
+];
+
+function AlertsSection({ locationId }) {
+  const [rules, setRules] = useState({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/settings/maintainx-key`, { headers: authHeaders() })
-      .then(r => r.json())
-      .then(d => setConnected(d.connected))
-      .catch(() => setConnected(false));
-  }, []);
+    if (!locationId) return;
+    api.get('/alerts/rules', { params: { location_id: locationId } })
+      .then(res => {
+        const map = {};
+        (res.data.rules || []).forEach(r => { map[r.rule_key] = r.enabled; });
+        setRules(map);
+      })
+      .catch(() => {});
+  }, [locationId]);
 
-  async function handleSave(e) {
-    e.preventDefault();
-    setError(''); setSuccess('');
-    if (!apiKey.trim()) return setError('Paste your MaintainX API key above.');
+  const toggle = async (key) => {
+    const next = { ...rules, [key]: !rules[key] };
+    setRules(next);
     setSaving(true);
     try {
-      const r = await fetch(`${API}/settings/maintainx-key`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ api_key: apiKey }),
+      const defaultThresholds = { high_count: 5, no_wo_days: 90, savings_opportunity: 10000 };
+      await api.post('/alerts/rules', {
+        location_id: locationId,
+        rules: SETTINGS_ALERT_RULES.map(r => ({
+          rule_key:  r.key,
+          threshold: defaultThresholds[r.key] ?? null,
+          channel:   'Email',
+          frequency: 'Immediately',
+          enabled:   next[r.key] ?? false,
+        })),
       });
-      if (!r.ok) throw new Error((await r.json()).detail || 'Failed to save');
+    } catch { /* silently revert */ }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-0">
+      {SETTINGS_ALERT_RULES.map(alert => (
+        <div key={alert.key} className="flex items-start justify-between gap-4 py-3 border-b border-slate-700/30 last:border-0">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white">{alert.label}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{alert.description}</p>
+          </div>
+          <button
+            onClick={() => toggle(alert.key)}
+            disabled={saving}
+            className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors duration-200 disabled:opacity-60 ${rules[alert.key] ? 'bg-indigo-600' : 'bg-slate-700'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${rules[alert.key] ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FaciliWorksSection({ locationId, isOwnerOrAdmin }) {
+  const [connected, setConnected]   = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [baseUrl, setBaseUrl]       = useState('');
+  const [apiKey, setApiKey]         = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [syncing, setSyncing]       = useState(false);
+  const [error, setError]           = useState('');
+  const [syncResult, setSyncResult] = useState(null);
+
+  useEffect(() => {
+    api.get('/settings/faciliworks-key', { params: { location_id: locationId } })
+      .then(r => setConnected(r.data.connected))
+      .catch(() => setConnected(false))
+      .finally(() => setLoading(false));
+  }, [locationId]);
+
+  const connect = async () => {
+    if (!baseUrl.trim() || !apiKey.trim()) {
+      setError('Both fields are required.');
+      return;
+    }
+    setSaving(true); setError(''); setSyncResult(null);
+    try {
+      await api.post('/settings/faciliworks-key', {
+        base_url: baseUrl.trim(),
+        api_key: apiKey.trim(),
+        location_id: locationId,
+      });
       setConnected(true);
-      setApiKey('');
-      setSuccess('MaintainX connected successfully.');
-      refreshLocation();
+      setBaseUrl(''); setApiKey('');
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || 'Failed to save credentials.');
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  async function handleSync() {
-    setError(''); setSuccess('');
-    setSyncing(true);
+  const disconnect = async () => {
+    setSaving(true); setError(''); setSyncResult(null);
     try {
-      const r = await fetch(`${API}/settings/maintainx-sync`, {
-        method: 'POST',
-        headers: authHeaders(),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Sync failed');
-      setSuccess(`Sync complete — ${d.inserted} new, ${d.updated} updated.`);
+      await api.delete('/settings/faciliworks-key', { params: { location_id: locationId } });
+      setConnected(false);
+    } catch { /* ignore */ } finally {
+      setSaving(false);
+    }
+  };
+
+  const syncNow = async () => {
+    setSyncing(true); setError(''); setSyncResult(null);
+    try {
+      const r = await api.post('/settings/faciliworks-sync', null, { params: { location_id: locationId } });
+      setSyncResult(r.data);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || 'Sync failed.');
     } finally {
       setSyncing(false);
     }
-  }
+  };
 
-  async function handleRemove() {
-    setError(''); setSuccess('');
-    setRemoving(true);
-    try {
-      await fetch(`${API}/settings/maintainx-key`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-      setConnected(false);
-      setSuccess('MaintainX disconnected.');
-      refreshLocation();
-    } catch {
-      setError('Failed to remove key.');
-    } finally {
-      setRemoving(false);
-    }
-  }
+  if (loading) return <p className="text-xs text-slate-500 animate-pulse">Checking connection…</p>;
 
   return (
-    <div className="h-full overflow-y-auto bg-slate-950 p-6">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-xl font-semibold text-white mb-1">Settings</h1>
-        <p className="text-sm text-slate-400 mb-8">Connect your CMMS to populate TrueSignal with your real equipment data.</p>
+    <div>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-white">FaciliWorks</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Sync work orders and assets from FaciliWorks into TrueSignal.</p>
+        </div>
+        <div className={`flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border flex-shrink-0 ml-4 ${
+          connected
+            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+            : 'text-slate-400 bg-slate-800/60 border-slate-700/40'
+        }`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+          {connected ? 'Connected' : 'Not connected'}
+        </div>
+      </div>
 
-        {/* Team section — owner/admin only */}
-        {isOwnerOrAdmin && user && (
-          <TeamSection currentUserId={user.id} currentUserRole={role} />
-        )}
-
-        {/* MaintainX card */}
-        <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-semibold text-white">MaintainX</h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Pull work orders and assets from MaintainX into TrueSignal automatically.
-              </p>
-            </div>
-            {connected === null ? (
-              <span className="text-xs text-slate-500 animate-pulse">Checking…</span>
-            ) : connected ? (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                Connected
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                <span className="h-2 w-2 rounded-full bg-slate-600" />
-                Not connected
-              </span>
-            )}
-          </div>
-
-          {connected ? (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-300">
-                Your MaintainX API key is stored securely. TrueSignal syncs your work orders and assets daily.
-              </p>
-              <div className="flex items-center gap-4">
+      {connected ? (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            {isOwnerOrAdmin && (
+              <>
                 <button
-                  onClick={handleSync}
+                  onClick={syncNow}
                   disabled={syncing}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Syncing…' : 'Sync Now'}
                 </button>
                 <button
-                  onClick={handleRemove}
-                  disabled={removing}
-                  className="text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                  onClick={disconnect}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 border border-slate-700/50"
                 >
-                  {removing ? 'Removing…' : 'Disconnect MaintainX'}
+                  <Unlink className="w-3.5 h-3.5" />
+                  Disconnect
                 </button>
-              </div>
+              </>
+            )}
+          </div>
+          {syncResult && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 space-y-0.5">
+              <p>Sync complete — {syncResult.inserted} new, {syncResult.updated} updated</p>
+              {syncResult.predictions_stored > 0 && (
+                <p className="text-slate-400">{syncResult.predictions_stored} predictions refreshed · {syncResult.implemented} suggestions marked implemented</p>
+              )}
             </div>
-          ) : (
-            <form onSubmit={handleSave} className="space-y-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  API Key
-                  <span className="ml-2 text-slate-600">— MaintainX → Settings → Integrations → API</span>
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder="Paste your MaintainX API key"
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                  autoComplete="off"
-                />
-              </div>
-              <p className="text-xs text-slate-500">
-                Your key is encrypted with AES-256 before storage and never returned to the browser.
-              </p>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Connect MaintainX'}
-              </button>
-            </form>
           )}
+        </div>
+      ) : isOwnerOrAdmin ? (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">FaciliWorks Base URL</label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={e => setBaseUrl(e.target.value)}
+              placeholder="https://your-site.faciliworks.com"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">API Key</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="••••••••••••••••"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+          </div>
+          <button
+            onClick={connect}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Link className="w-3.5 h-3.5" />
+            {saving ? 'Connecting…' : 'Connect FaciliWorks'}
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Contact your admin to connect FaciliWorks.</p>
+      )}
 
-          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-          {success && <p className="mt-3 text-sm text-emerald-400">{success}</p>}
+      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+export default function Settings() {
+  const { user, role, isOwnerOrAdmin, locationId } = useAuth();
+
+  return (
+    <div className="w-full h-full px-6 py-6 overflow-y-auto">
+      <h1 className="text-xl font-semibold text-white mb-1">Settings</h1>
+      <p className="text-sm text-slate-400 mb-6">Manage your platform connection, team, and alert preferences.</p>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        {/* Left: Platform + Team combined */}
+        <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-6">
+
+          {/* FaciliWorks connection */}
+          <FaciliWorksSection locationId={locationId} isOwnerOrAdmin={isOwnerOrAdmin} />
+
+          {/* Divider into Team */}
+          {isOwnerOrAdmin && user && (
+            <>
+              <div className="border-t border-slate-700/40 my-6" />
+              <TeamSection currentUserId={user.id} currentUserRole={role} />
+            </>
+          )}
+        </div>
+
+        {/* Right col: Alerts */}
+        <div className="space-y-6">
+
+        {/* Alerts */}
+        <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Bell className="w-4 h-4 text-amber-400" />
+            <h2 className="text-base font-semibold text-white">Alerts</h2>
+            <span className="ml-auto text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">Email active</span>
+          </div>
+          <AlertsSection locationId={locationId} />
+          <p className="text-xs text-slate-600 mt-4">Alerts are sent to your account email after each sync. Use "Notify Me" on any page for custom thresholds.</p>
         </div>
 
         {/* Future integrations placeholder */}
-        <div className="mt-4 bg-slate-900/50 border border-slate-700/30 rounded-xl p-6 opacity-50">
+        <div className="bg-slate-900/50 border border-slate-700/30 rounded-xl p-6 opacity-50">
           <h2 className="text-base font-semibold text-slate-400">More integrations coming soon</h2>
           <p className="text-xs text-slate-500 mt-1">Limble, UpKeep, Fiix</p>
         </div>
-      </div>
+        </div> {/* end right col */}
+        </div> {/* end grid */}
     </div>
   );
 }
