@@ -165,41 +165,37 @@ async def get_failure_predictions(
     Returns predictions sorted by failure probability (highest risk first).
     """
     try:
-        # Fetch all rows first, then deduplicate, then apply limit
-        df = retrieve_failure_predictions(
-            asset_id=asset_id,
-            risk_level=risk_level,
-            min_probability=min_probability,
-            limit=10000,
-            location_id=location_id,
-        )
+        from .neon import get_conn as _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
 
-        if df.empty:
-            return []
+        filters, params = ["1=1"], []
+        if location_id  is not None: filters.append("location_id = %s");          params.append(location_id)
+        if asset_id:                 filters.append("asset_id = %s");             params.append(asset_id)
+        if risk_level:               filters.append("risk_level = %s");           params.append(risk_level.upper())
+        if min_probability is not None: filters.append("failure_probability >= %s"); params.append(min_probability)
+        if days:                     filters.append("prediction_date >= %s");     params.append((datetime.now() - timedelta(days=days)).date())
 
-        if days and 'prediction_date' in df.columns:
-            cutoff = (datetime.now() - timedelta(days=days)).date()
-            df['prediction_date'] = pd.to_datetime(df['prediction_date']).dt.date
-            df = df[df['prediction_date'] >= cutoff]
+        where = " AND ".join(filters)
+        # DISTINCT ON deduplicates to latest prediction per asset in SQL
+        cur.execute(f"""
+            SELECT DISTINCT ON (asset_id)
+                asset_id, prediction_date, failure_probability, confidence_score,
+                days_to_predicted_failure, mtbf_days, days_since_last_pm,
+                reactive_work_count_90d, risk_level, recommendation, location_id
+            FROM asset_failure_predictions
+            WHERE {where}
+            ORDER BY asset_id, prediction_date DESC, failure_probability DESC
+        """, params)
+        rows = cur.fetchall()
+        conn.close()
 
-        # Deduplicate to latest prediction per asset, then apply requested limit
-        if 'prediction_date' in df.columns and 'asset_id' in df.columns:
-            df = df.sort_values('prediction_date', ascending=False)
-            df = df.drop_duplicates(subset='asset_id', keep='first')
-            df = df.sort_values('failure_probability', ascending=False)
+        # Sort by failure_probability DESC then apply limit
+        rows.sort(key=lambda r: r['failure_probability'] or 0, reverse=True)
+        return [dict(r) for r in rows[:limit]]
 
-        return _clean_records(df.head(limit).to_dict('records'))
-        
-    except PredictionStorageError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve failure predictions: {str(e)}"
-        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get(
@@ -342,33 +338,31 @@ async def get_pm_optimization_suggestions_endpoint(
     Returns suggestions sorted by cost savings (highest first).
     """
     try:
-        df = retrieve_pm_optimization_suggestions(
-            asset_id=asset_id,
-            status=status,
-            min_savings=min_savings,
-            limit=limit,
-            location_id=location_id,
-        )
+        from .neon import get_conn as _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
 
-        if df.empty:
-            return []
+        filters, params = ["1=1"], []
+        if location_id  is not None: filters.append("location_id = %s");             params.append(location_id)
+        if asset_id:                 filters.append("asset_id = %s");                params.append(asset_id)
+        if status:                   filters.append("status = %s");                  params.append(status)
+        if min_savings is not None:  filters.append("estimated_cost_savings >= %s"); params.append(min_savings)
+        if days:                     filters.append("suggestion_date >= %s");        params.append((datetime.now() - timedelta(days=days)).date())
 
-        if days and 'suggestion_date' in df.columns:
-            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-            df = df[df['suggestion_date'] >= cutoff]
+        where = " AND ".join(filters)
+        params.append(limit)
+        cur.execute(f"""
+            SELECT * FROM pm_optimization_suggestions
+            WHERE {where}
+            ORDER BY estimated_cost_savings DESC, suggestion_date DESC
+            LIMIT %s
+        """, params)
+        rows = cur.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
 
-        return _clean_records(df.to_dict('records'))
-        
-    except PredictionStorageError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve PM suggestions: {str(e)}"
-        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get(
@@ -505,28 +499,29 @@ async def get_maintenance_insights_endpoint(
     Returns insights sorted by date and confidence score.
     """
     try:
-        df = retrieve_maintenance_insights(
-            insight_type=insight_type,
-            impact_level=impact_level,
-            limit=limit,
-            location_id=location_id,
-        )
-        
-        if df.empty:
-            return []
-        
-        return _clean_records(df.to_dict('records'))
-        
-    except PredictionStorageError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve insights: {str(e)}"
-        )
+        from .neon import get_conn as _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
+
+        filters, params = ["1=1"], []
+        if location_id  is not None: filters.append("location_id = %s");   params.append(location_id)
+        if insight_type:             filters.append("insight_type = %s");  params.append(insight_type)
+        if impact_level:             filters.append("impact_level = %s");  params.append(impact_level.upper())
+
+        where = " AND ".join(filters)
+        params.append(limit)
+        cur.execute(f"""
+            SELECT * FROM maintenance_insights
+            WHERE {where}
+            ORDER BY insight_date DESC, confidence_score DESC
+            LIMIT %s
+        """, params)
+        rows = cur.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get(
