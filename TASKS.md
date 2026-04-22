@@ -81,6 +81,42 @@ Frontend: route guard in `AuthContext` — if `!emailVerified`, redirect to a "C
 
 ---
 
+## 🔴 FaciliWorks Integration — Must Validate Before Go-Live
+
+### 14. Live end-to-end sync test
+We have only tested against our own mock server — never against a real FaciliWorks account.
+Before telling customers the integration is production-ready:
+- Run one live sync against a real FaciliWorks account
+- Verify work orders land in the DB with correct asset_ids, types, statuses, and dates
+- Verify PM push (push_pm_as_work_order) creates a real WO in FaciliWorks
+- One 30-minute live test is worth more than the entire mock server
+
+### 15. Asset naming must match the CMMS
+**Root cause of the "Asset not found" error:** our internal `asset_id` is used as both
+the CMMS external reference AND the display name. These need to be separate.
+- Add a `display_name` column to a dedicated `assets` table (or to `asset_failure_predictions`)
+- Keep `asset_id` as the raw CMMS identifier (e.g. "MMC-AHU-001") for all joins and CMMS calls
+- Show `display_name` (e.g. "Air Handler 1") in the UI
+- Sync should always write the CMMS's own asset identifier into `asset_id` — never a renamed slug
+- This is the structural fix; the fallback lookup added in adapter_faciliworks.py is a stopgap only
+
+### 16. FaciliWorks sync error handling & resilience
+Currently a single failed WO mapping silently drops the record. Need:
+- Retry logic (3 attempts with backoff) on failed API calls
+- Alert/log when sync partially fails (some assets skipped)
+- Graceful handling if FaciliWorks is down mid-sync (don't wipe existing WOs)
+- Surface sync errors in the Settings page so the user knows something went wrong
+
+### 17. FaciliWorks API field validation
+Real customer assets created in FaciliWorks UI may return different field shapes than
+assets created via API. Known issues:
+- `manufacturer`/`model` returned as strings from UI-created assets, objects from API-created
+- `equipmentID` format is user-defined — cannot assume MMC-* pattern
+- Pagination behavior untested at scale (>100 assets, >500 WOs)
+- Add defensive field access throughout adapter_faciliworks.py
+
+---
+
 ## 🔵 Backlog
 
 - Landing page: app screenshot carousel / live demo account preview
