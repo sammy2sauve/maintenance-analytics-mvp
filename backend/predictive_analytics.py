@@ -346,8 +346,15 @@ def predict_asset_failures(
                 # Predicted failure when days_since_pm reaches MTBF
                 days_to_failure = max(int(mtbf - days_since_pm), 0)
             
-            # Classify risk
+            # Classify risk — probability-based, then upgrade if failure is imminent
             risk_level = classify_risk_level(probability)
+            if days_to_failure is not None:
+                if days_to_failure <= 7:  # includes 0 (already overdue)
+                    risk_level = 'CRITICAL'
+                elif days_to_failure <= 14 and risk_level in ('MEDIUM', 'LOW'):
+                    risk_level = 'HIGH'
+                elif days_to_failure <= 30 and risk_level == 'LOW':
+                    risk_level = 'MEDIUM'
             
             # Generate recommendation
             recommendation = generate_failure_recommendation(

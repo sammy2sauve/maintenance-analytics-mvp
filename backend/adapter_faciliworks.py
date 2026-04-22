@@ -431,6 +431,16 @@ def push_pm_as_work_order(suggestion: dict, base_url: str, api_key: str) -> str:
     asset_id = suggestion["asset_id"]
     mid = reverse_map.get(asset_id)
     if not mid:
+        # Fallback: match by FW asset description or slug (handles renamed assets)
+        needle = asset_id.lower().strip()
+        needle_slug = _slug_from_name(asset_id)
+        for fw_a in fw_assets:
+            desc = (fw_a.get("description") or fw_a.get("Description") or "").lower().strip()
+            eid  = (fw_a.get("equipmentID")  or fw_a.get("EquipmentID")  or "").lower().strip()
+            if desc == needle or eid == needle or _slug_from_name(desc) == needle_slug:
+                mid = fw_a.get("equipmentMasterID") or fw_a.get("EquipmentMasterID")
+                break
+    if not mid:
         raise ValueError(f"Asset '{asset_id}' not found in FaciliWorks. Run a sync first.")
 
     due_epoch = int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp())

@@ -6,9 +6,6 @@ import GatedView from '../components/GatedView';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const RISK_COLORS  = { LOW: '#34d399', MEDIUM: '#fbbf24', HIGH: '#fb923c', CRITICAL: '#f87171' };
-const RISK_ORDER   = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-const RISK_PRIORITY = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-
 const URGENCY_BUCKETS = [
   { label: '0–7d',   min: 0,   max: 7,   color: '#f87171' },
   { label: '8–14d',  min: 8,   max: 14,  color: '#fb923c' },
@@ -17,6 +14,9 @@ const URGENCY_BUCKETS = [
   { label: '61–90d', min: 61,  max: 90,  color: '#34d399' },
   { label: '90+d',   min: 91,  max: Infinity, color: '#34d399' },
 ];
+const RISK_ORDER   = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const RISK_PRIORITY = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
 
 // Draws a single circular progress ring + centered stat
 function RiskRing({ level, count, total }) {
@@ -222,12 +222,12 @@ export default function AssetHealth({ dateRange }) {
     })
     .slice(0, 7);
 
-  // Urgency histogram — all assets bucketed by days_to_predicted_failure.
-  // Assets with no predicted failure window (LOW/MEDIUM, null) are treated as 90+d (healthy).
+  // Urgency histogram — bucketed by days_to_predicted_failure.
+  // null = no failure predicted → 90+d. 0 = already overdue → 0-7d bucket.
   const histData = URGENCY_BUCKETS.map(b => ({
     label: b.label,
     count: filtered.filter(p => {
-      const days = (p.days_to_predicted_failure == null || p.days_to_predicted_failure === 0) ? 999 : p.days_to_predicted_failure;
+      const days = p.days_to_predicted_failure == null ? 999 : p.days_to_predicted_failure;
       return days >= b.min && days <= b.max;
     }).length,
     color: b.color,
