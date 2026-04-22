@@ -593,51 +593,57 @@ async def get_prediction_summary(
     ),
 ) -> Dict[str, Any]:
     """
-    Get summary statistics for predictions.
+    Get summary statistics for predictions using direct SQL aggregations.
     """
     try:
-        # Get all predictions
-        all_predictions = retrieve_failure_predictions(limit=10000, location_id=location_id)
+        from .neon import get_conn as _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
+        loc = [location_id] if location_id is not None else []
+        loc_filter = "AND location_id = %s" if location_id is not None else ""
 
-        # Count by risk level
-        total_assets = len(all_predictions)
-        high_risk = len(all_predictions[all_predictions['risk_level'] == 'HIGH']) if not all_predictions.empty else 0
-        critical_risk = len(all_predictions[all_predictions['risk_level'] == 'CRITICAL']) if not all_predictions.empty else 0
+        # Single query: count latest prediction per asset by risk level
+        cur.execute(f"""
+            SELECT
+                COUNT(*) AS total_assets,
+                COUNT(CASE WHEN risk_level='CRITICAL' THEN 1 END) AS critical_risk,
+                COUNT(CASE WHEN risk_level='HIGH' THEN 1 END) AS high_risk
+            FROM (
+                SELECT DISTINCT ON (asset_id) asset_id, risk_level
+                FROM asset_failure_predictions WHERE 1=1 {loc_filter}
+                ORDER BY asset_id, prediction_date DESC
+            ) latest
+        """, loc)
+        row = cur.fetchone()
+        total_assets  = row['total_assets']  or 0
+        critical_risk = row['critical_risk'] or 0
+        high_risk     = row['high_risk']     or 0
 
-        # Get all pending suggestions
-        pending_suggestions = retrieve_pm_optimization_suggestions(
-            status='pending',
-            limit=10000,
-            location_id=location_id,
-        )
+        # Single query: pending suggestions total savings + count
+        cur.execute(f"""
+            SELECT COALESCE(SUM(estimated_cost_savings), 0) AS total_savings,
+                   COUNT(*) AS pending_count
+            FROM pm_optimization_suggestions
+            WHERE status='pending' {loc_filter}
+        """, loc)
+        row2 = cur.fetchone()
 
-        # Calculate total savings potential
-        total_savings = 0.0
-        if not pending_suggestions.empty:
-            total_savings = pending_suggestions['estimated_cost_savings'].sum()
+        # Single query: insight count
+        cur.execute(f"SELECT COUNT(*) AS cnt FROM maintenance_insights WHERE 1=1 {loc_filter}", loc)
+        insight_count = cur.fetchone()['cnt'] or 0
 
-        # Get recent insights
-        recent_insights = retrieve_maintenance_insights(limit=10000, location_id=location_id)
-        
+        conn.close()
         return {
             "total_assets_monitored": total_assets,
             "high_risk_assets": high_risk,
             "critical_risk_assets": critical_risk,
-            "total_cost_savings_potential": round(total_savings, 2),
-            "pending_suggestions": len(pending_suggestions),
-            "latest_insights": len(recent_insights)
+            "total_cost_savings_potential": round(float(row2['total_savings']), 2),
+            "pending_suggestions": row2['pending_count'] or 0,
+            "latest_insights": insight_count,
         }
-        
-    except PredictionStorageError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate summary: {str(e)}"
-        )
+
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Summary error: {str(e)}")
 
 
 @router.get(
@@ -652,36 +658,70 @@ async def get_prediction_dashboard(
     ),
 ) -> Dict[str, Any]:
     """
-    Get comprehensive prediction dashboard data.
+    Get dashboard data using direct SQL — no pandas, single connection.
     """
     try:
-        # Get summary
-        summary = await get_prediction_summary(location_id=location_id)
+        from .neon import get_conn as _get_conn
+        conn = _get_conn()
+        cur = conn.cursor()
+        loc = [location_id] if location_id is not None else []
+        loc_filter = "AND location_id = %s" if location_id is not None else ""
 
-        # Get high-risk assets
-        high_risk_df = get_high_risk_assets(min_probability=0.5, limit=10, location_id=location_id)
-        high_risk = _clean_records(high_risk_df.to_dict('records')) if not high_risk_df.empty else []
+        # Summary counts
+        cur.execute(f"""
+            SELECT
+                COUNT(*) AS total_assets,
+                COUNT(CASE WHEN risk_level='CRITICAL' THEN 1 END) AS critical_risk,
+                COUNT(CASE WHEN risk_level='HIGH' THEN 1 END) AS high_risk
+            FROM (
+                SELECT DISTINCT ON (asset_id) asset_id, risk_level
+                FROM asset_failure_predictions WHERE 1=1 {loc_filter}
+                ORDER BY asset_id, prediction_date DESC
+            ) latest
+        """, loc)
+        s = cur.fetchone()
 
-        # Get cost savings
-        savings_df = get_cost_saving_opportunities(min_savings=50, limit=10, location_id=location_id)
-        cost_savings = _clean_records(savings_df.to_dict('records')) if not savings_df.empty else []
+        # Top 10 high-risk assets
+        cur.execute(f"""
+            SELECT DISTINCT ON (asset_id) asset_id, risk_level, failure_probability,
+                   days_to_predicted_failure, recommendation
+            FROM asset_failure_predictions WHERE failure_probability >= 0.5 {loc_filter}
+            ORDER BY asset_id, prediction_date DESC, failure_probability DESC
+            LIMIT 10
+        """, loc)
+        high_risk = [dict(r) for r in cur.fetchall()]
 
-        # Get insights
-        insights_df = retrieve_maintenance_insights(limit=5, location_id=location_id)
-        insights = _clean_records(insights_df.to_dict('records')) if not insights_df.empty else []
-        
+        # Top 10 cost saving opportunities
+        cur.execute(f"""
+            SELECT asset_id, estimated_cost_savings, current_pm_frequency_days,
+                   suggested_pm_frequency_days, reason
+            FROM pm_optimization_suggestions
+            WHERE status='pending' AND estimated_cost_savings >= 50 {loc_filter}
+            ORDER BY estimated_cost_savings DESC LIMIT 10
+        """, loc)
+        cost_savings = [dict(r) for r in cur.fetchall()]
+
+        # Latest 5 insights
+        cur.execute(f"""
+            SELECT title, description, insight_type, impact_level,
+                   confidence_score, affected_assets, insight_date
+            FROM maintenance_insights WHERE 1=1 {loc_filter}
+            ORDER BY insight_date DESC LIMIT 5
+        """, loc)
+        insights = [dict(r) for r in cur.fetchall()]
+
+        conn.close()
         return {
-            "summary": summary,
+            "summary": {
+                "total_assets_monitored": s['total_assets'] or 0,
+                "high_risk_assets": s['high_risk'] or 0,
+                "critical_risk_assets": s['critical_risk'] or 0,
+            },
             "high_risk_assets": high_risk,
             "cost_saving_opportunities": cost_savings,
-            "latest_insights": insights
+            "latest_insights": insights,
         }
-        
-    except PredictionStorageError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate dashboard: {str(e)}"
-        )
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
