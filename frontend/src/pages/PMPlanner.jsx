@@ -101,7 +101,7 @@ function PMPlannerSkeleton() {
 }
 
 export default function PMPlanner() {
-  const { hasApiKey, locationId } = useAuth();
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -125,7 +125,7 @@ export default function PMPlanner() {
     }
   };
 
-  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, locationId]);
+  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, locationId, syncVersion]);
 
   if (!hasApiKey) return (
     <GatedView
