@@ -32,12 +32,12 @@ def refresh_demo_dates() -> dict:
                 COALESCE(creation_date,   '2000-01-01'::date),
                 COALESCE(completion_date, '2000-01-01'::date),
                 COALESCE(due_date,        '2000-01-01'::date)
-            ))
+            )) AS max_date
             FROM work_orders
             WHERE location_id = %s
         """, (DEMO_LOCATION_ID,))
         row = cur.fetchone()
-        max_date = row[0] if row else None
+        max_date = row['max_date'] if row else None
 
         if not max_date:
             return {"status": "skipped", "reason": "no work orders found for demo location"}
