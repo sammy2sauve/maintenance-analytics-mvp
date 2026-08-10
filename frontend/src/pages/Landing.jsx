@@ -323,13 +323,16 @@ export default function Landing() {
   const { loginAsDemo } = useAuth();
   const navigate = useNavigate();
   const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState('');
 
   const handleDemo = async () => {
     setDemoLoading(true);
+    setDemoError('');
     try {
       await loginAsDemo();
       navigate('/dashboard/');
-    } catch {
+    } catch (err) {
+      setDemoError('Could not load demo — please try again in a moment.');
       setDemoLoading(false);
     }
   };
@@ -341,8 +344,6 @@ export default function Landing() {
       <nav className="flex-shrink-0 w-full px-8 py-3.5 flex items-center justify-between border-b border-slate-800/60">
         <Logo />
         <div className="flex items-center gap-2">
-          <Link to="/pricing" className="text-sm text-slate-400 hover:text-white px-4 py-1.5 rounded-lg transition-colors">Pricing</Link>
-          <Link to="/login" className="text-sm text-slate-500 hover:text-slate-300 px-4 py-1.5 rounded-lg transition-colors">Sign In</Link>
           <button onClick={handleDemo} disabled={demoLoading} className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg transition-colors">
             {demoLoading ? 'Loading…' : 'Try the Demo'}
           </button>
@@ -369,12 +370,14 @@ export default function Landing() {
             which assets are about to fail — before they do.
           </p>
 
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-2">
             <button onClick={handleDemo} disabled={demoLoading} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-indigo-500/20">
               {demoLoading ? 'Loading…' : 'Try the Demo'}
             </button>
             <span className="text-xs text-slate-500">No sign-up required</span>
           </div>
+          {demoError && <p className="text-xs text-red-400 mb-6">{demoError}</p>}
+          {!demoError && <div className="mb-6" />}
 
           <div className="space-y-3">
             {FEATURES.map(({ Icon, title, desc }) => (
