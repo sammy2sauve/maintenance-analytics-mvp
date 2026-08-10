@@ -8,13 +8,11 @@ export function openSupportChat(prefill = '') {
   window.dispatchEvent(new CustomEvent('open-support-chat', { detail: { prefill } }));
 }
 
-const GREETING = {
-  role: 'support',
-  text: "Hi! I'm the TrueSignal support team. Send us a message and we'll get back to you within one business day.",
-};
+const GREETING_DEFAULT = "Hi! I'm the TrueSignal support team. Send us a message and we'll get back to you within one business day.";
+const GREETING_DEMO = "You're exploring the TrueSignal demo. Try sending a message below to see how our support experience works!";
 
 export default function SupportChat() {
-  const { user } = useAuth();
+  const { user, isDemo } = useAuth();
   const [open, setOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [name, setName] = useState('');
@@ -61,6 +59,7 @@ export default function SupportChat() {
         email: email.trim(),
         subject: subject.trim() || 'Support request',
         message: message.trim(),
+        is_demo: isDemo,
       });
       setSent(true);
       setMessage('');
@@ -147,7 +146,7 @@ export default function SupportChat() {
             <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
           </div>
           <div className="bg-slate-800/80 border border-slate-700/40 rounded-xl rounded-tl-sm px-3.5 py-2.5 max-w-[85%]">
-            <p className="text-xs text-slate-300 leading-relaxed">{GREETING.text}</p>
+            <p className="text-xs text-slate-300 leading-relaxed">{isDemo ? GREETING_DEMO : GREETING_DEFAULT}</p>
           </div>
         </div>
 
@@ -157,10 +156,21 @@ export default function SupportChat() {
               <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl rounded-tl-sm px-3.5 py-2.5 max-w-[85%]">
-              <p className="text-xs text-emerald-400 font-medium">Message received!</p>
-              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                We'll get back to you at {email || 'your email'} within one business day.
-              </p>
+              {isDemo ? (
+                <>
+                  <p className="text-xs text-emerald-400 font-medium">Thanks for trying the TrueSignal demo!</p>
+                  <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                    {email ? `We've sent a note to ${email}.` : ''} Ready to connect your real CMMS? Visit truesignalapp.com to get started.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-emerald-400 font-medium">Message received!</p>
+                  <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                    We'll get back to you at {email || 'your email'} within one business day.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}

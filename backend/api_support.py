@@ -18,6 +18,7 @@ class SupportMessage(BaseModel):
     email: str = ""
     subject: str = "Support request"
     message: str
+    is_demo: bool = False
 
 
 @router.post("/message")
@@ -55,4 +56,22 @@ def send_support_message(body: SupportMessage):
     """)
 
     sent = _send(SUPPORT_INBOX, f"[TrueSignal Support] {body.subject}", html)
+
+    # Auto-reply to demo users so they know we received it
+    if body.is_demo and body.email.strip():
+        autoresponse = _base_template(f"""
+          <h2 style="color:#fff;font-size:20px;margin:0 0 8px;">Thanks for trying TrueSignal!</h2>
+          <p style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 16px;">
+            You just sent a message via the TrueSignal demo. We received it and will follow up shortly.
+          </p>
+          <p style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 20px;">
+            Ready to connect your real CMMS and start seeing your own equipment data?
+          </p>
+          <a href="https://truesignalapp.com/signup"
+             style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;">
+            Get Started Free
+          </a>
+        """)
+        _send(body.email.strip(), "Thanks for trying TrueSignal", autoresponse)
+
     return {"sent": sent}

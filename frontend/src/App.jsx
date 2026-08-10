@@ -149,7 +149,8 @@ function Dashboard() {
       <Nav basePath="/dashboard" />
       <OnboardingBanner />
       <TrialBanner />
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
+        <div className="pointer-events-none absolute top-0 left-0 right-0 h-10 z-10 bg-gradient-to-b from-slate-950 to-transparent" />
         <Routes>
           <Route path="/"            element={<Overview dateRange={dateRange} />} />
           <Route path="/assets"      element={<AssetHealth />} />

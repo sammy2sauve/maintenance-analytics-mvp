@@ -126,6 +126,7 @@ export function AuthProvider({ children }) {
   };
 
   const isOwnerOrAdmin = role === 'owner' || role === 'admin';
+  const isDemo = locationId === 3;
   const trialActive = plan === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0;
   const trialExpired = plan === 'trial' && trialDaysLeft !== null && trialDaysLeft <= 0;
 
@@ -133,7 +134,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, loading, login, signup, logout, loginAsDemo,
       locationId, hasApiKey, refreshLocation,
-      role, isOwnerOrAdmin,
+      role, isOwnerOrAdmin, isDemo,
       plan, trialDaysLeft, trialActive, trialExpired,
       syncing, lastSynced, syncVersion, triggerSync,
     }}>

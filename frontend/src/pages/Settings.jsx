@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Copy, Check, Users, Bell, RefreshCw, Unlink, Link } from 'lucide-react';
+import { Copy, Check, Users, Bell, RefreshCw, Unlink, Link, Info } from 'lucide-react';
+
+function DemoNotice({ message, onDismiss }) {
+  if (!message) return null;
+  return (
+    <div className="mb-4 flex items-start gap-2.5 p-3 bg-indigo-500/10 border border-indigo-500/25 rounded-lg">
+      <Info className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+      <p className="text-xs text-indigo-300 leading-relaxed flex-1">{message}</p>
+      <button onClick={onDismiss} className="text-indigo-400/50 hover:text-indigo-300 text-xs ml-1">✕</button>
+    </div>
+  );
+}
 
 
 function authHeaders() {
@@ -46,8 +57,18 @@ function SeatBar({ used, limit, tier }) {
   );
 }
 
-function TeamSection({ currentUserId, currentUserRole }) {
-  const [team, setTeam]         = useState(null);
+const DEMO_TEAM = {
+  members: [
+    { id: 'demo-you', name: 'Demo Account (You)', email: 'support@truesignalapp.com', role: 'owner' },
+    { id: 'demo-1',   name: 'Alex Rivera',        email: 'alex.rivera@meridianmedical.com', role: 'admin' },
+    { id: 'demo-2',   name: 'Sarah Chen',          email: 'sarah.chen@meridianmedical.com',  role: 'viewer' },
+    { id: 'demo-3',   name: 'Marcus Williams',     email: 'm.williams@meridianmedical.com',  role: 'viewer' },
+  ],
+  seat_usage: { used: 4, limit: 10, tier: 'Pro' },
+};
+
+function TeamSection({ currentUserId, currentUserRole, isDemo }) {
+  const [team, setTeam]         = useState(isDemo ? DEMO_TEAM : null);
   const [codes, setCodes]       = useState([]);
   const [genRole, setGenRole]   = useState('viewer');
   const [genExpiry, setGenExpiry] = useState(7);
@@ -57,6 +78,7 @@ function TeamSection({ currentUserId, currentUserRole }) {
   const [removing, setRemoving] = useState(null);
   const [revoking, setRevoking] = useState(null);
   const [teamError, setTeamError] = useState('');
+  const [demoMsg, setDemoMsg]   = useState('');
 
   const fetchTeam = async () => {
     try {
@@ -69,9 +91,13 @@ function TeamSection({ currentUserId, currentUserRole }) {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { fetchTeam(); }, []);
+  useEffect(() => { if (!isDemo) fetchTeam(); }, []);
 
   const generateCode = async () => {
+    if (isDemo) {
+      setDemoMsg('This is a demo account. In your account, you can generate invite codes to add teammates — set their role and expiry, then share the link.');
+      return;
+    }
     setGenerating(true); setTeamError(''); setNewCode(null);
     try {
       const res = await api.post('/invites/generate', { role: genRole, expires_days: genExpiry });
@@ -103,6 +129,10 @@ function TeamSection({ currentUserId, currentUserRole }) {
   };
 
   const removeMember = async (userId) => {
+    if (isDemo) {
+      setDemoMsg('This is a demo account. In your account, removing a member revokes their access and frees up a seat.');
+      return;
+    }
     setRemoving(userId); setTeamError('');
     try {
       await api.delete(`/invites/team/${userId}`);
@@ -121,7 +151,10 @@ function TeamSection({ currentUserId, currentUserRole }) {
       <div className="flex items-center gap-2 mb-5">
         <Users className="w-4 h-4 text-indigo-400" />
         <h2 className="text-base font-semibold text-white">Team</h2>
+        {isDemo && <span className="ml-auto text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Demo</span>}
       </div>
+
+      <DemoNotice message={demoMsg} onDismiss={() => setDemoMsg('')} />
 
       {!team ? (
         <p className="text-xs text-slate-500 animate-pulse">Loading team…</p>
@@ -293,7 +326,7 @@ function AlertsSection({ locationId }) {
   );
 }
 
-function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
+function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation, isDemo }) {
   const [connected, setConnected]   = useState(false);
   const [loading, setLoading]       = useState(true);
   const [baseUrl, setBaseUrl]       = useState('');
@@ -302,6 +335,7 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
   const [syncing, setSyncing]       = useState(false);
   const [error, setError]           = useState('');
   const [syncResult, setSyncResult] = useState(null);
+  const [demoMsg, setDemoMsg]       = useState('');
 
   useEffect(() => {
     api.get('/settings/faciliworks-key', { params: { location_id: locationId } })
@@ -346,6 +380,10 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
   };
 
   const disconnect = async () => {
+    if (isDemo) {
+      setDemoMsg('This is a demo account connected to sample Meridian Medical Center data. In your account, disconnecting would unlink your CMMS and let you reconnect with a new API token.');
+      return;
+    }
     setSaving(true); setError(''); setSyncResult(null);
     try {
       await api.delete('/settings/faciliworks-key', { params: { location_id: locationId } });
@@ -371,6 +409,7 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
 
   return (
     <div>
+      <DemoNotice message={demoMsg} onDismiss={() => setDemoMsg('')} />
       <div className="flex items-start justify-between mb-4">
         <div>
           <h2 className="text-base font-semibold text-white">FaciliWorks</h2>
@@ -460,7 +499,7 @@ function FaciliWorksSection({ locationId, isOwnerOrAdmin, refreshLocation }) {
 }
 
 export default function Settings() {
-  const { user, role, isOwnerOrAdmin, locationId, refreshLocation } = useAuth();
+  const { user, role, isOwnerOrAdmin, isDemo, locationId, refreshLocation } = useAuth();
 
   return (
     <div className="w-full h-full px-6 py-6 overflow-y-auto">
@@ -473,13 +512,13 @@ export default function Settings() {
         <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-6">
 
           {/* FaciliWorks connection */}
-          <FaciliWorksSection locationId={locationId} isOwnerOrAdmin={isOwnerOrAdmin} refreshLocation={refreshLocation} />
+          <FaciliWorksSection locationId={locationId} isOwnerOrAdmin={isOwnerOrAdmin} refreshLocation={refreshLocation} isDemo={isDemo} />
 
           {/* Divider into Team */}
           {isOwnerOrAdmin && user && (
             <>
               <div className="border-t border-slate-700/40 my-6" />
-              <TeamSection currentUserId={user.id} currentUserRole={role} />
+              <TeamSection currentUserId={user.id} currentUserRole={role} isDemo={isDemo} />
             </>
           )}
         </div>
