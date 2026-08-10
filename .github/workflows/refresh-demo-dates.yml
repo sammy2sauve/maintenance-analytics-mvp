@@ -11,11 +11,14 @@ jobs:
     steps:
       - name: Roll demo data dates forward
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          body=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
             -H "X-Admin-Secret: ${{ secrets.ADMIN_SECRET }}" \
             https://maintenance-analytics-mvp.onrender.com/admin/refresh-demo-dates)
-          echo "HTTP status: $response"
-          if [ "$response" != "200" ]; then
-            echo "Refresh failed with status $response"
+          http_status=$(echo "$body" | grep "HTTP_STATUS:" | cut -d: -f2)
+          response_body=$(echo "$body" | grep -v "HTTP_STATUS:")
+          echo "HTTP status: $http_status"
+          echo "Response: $response_body"
+          if [ "$http_status" != "200" ]; then
+            echo "Refresh failed"
             exit 1
           fi
