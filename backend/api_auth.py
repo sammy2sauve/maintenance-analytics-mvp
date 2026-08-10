@@ -2,9 +2,12 @@
 Auth endpoints -- /auth/signup, /auth/login, /auth/me
 """
 
+import os
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+
+DEMO_EMAIL = os.environ.get("DEMO_EMAIL", "support@truesignalapp.com")
 
 from .auth import (
     init_users_table,
@@ -124,6 +127,26 @@ def login(body: LoginRequest):
     user = get_user_by_email(body.email)
     if not user or not verify_password(body.password, user["hashed_password"]):
         raise HTTPException(401, "Invalid email or password")
+    token = create_token(user["id"], user["email"])
+    locations = get_user_locations(user["id"])
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+            "org_id": user.get("org_id"),
+            "locations": locations,
+        },
+    }
+
+
+@router.post("/demo", response_model=AuthResponse)
+def demo_login():
+    """Return a fresh JWT for the read-only demo account. No credentials required."""
+    user = get_user_by_email(DEMO_EMAIL)
+    if not user:
+        raise HTTPException(503, "Demo account not configured")
     token = create_token(user["id"], user["email"])
     locations = get_user_locations(user["id"])
     return {

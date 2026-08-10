@@ -96,6 +96,15 @@ export function AuthProvider({ children }) {
     return res.data.user;
   };
 
+  const loginAsDemo = async () => {
+    const res = await api.post('/auth/demo');
+    localStorage.setItem('ts_token', res.data.token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+    setUser(res.data.user);
+    extractLocation(res.data.user);
+    return res.data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem('ts_token');
     delete api.defaults.headers.common['Authorization'];
@@ -122,7 +131,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, loading, login, signup, logout,
+      user, loading, login, signup, logout, loginAsDemo,
       locationId, hasApiKey, refreshLocation,
       role, isOwnerOrAdmin,
       plan, trialDaysLeft, trialActive, trialExpired,

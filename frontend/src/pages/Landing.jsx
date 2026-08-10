@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Zap, Wrench, BarChart3, ChevronRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Slide: Asset Health ──────────────────────────────────────────────────────
 // Matches: toolbar + 4 glowing SVG rings + main list + Act Now sidebar
@@ -319,6 +320,20 @@ function Logo() {
 }
 
 export default function Landing() {
+  const { loginAsDemo } = useAuth();
+  const navigate = useNavigate();
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const handleDemo = async () => {
+    setDemoLoading(true);
+    try {
+      await loginAsDemo();
+      navigate('/dashboard/');
+    } catch {
+      setDemoLoading(false);
+    }
+  };
+
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
 
@@ -327,8 +342,10 @@ export default function Landing() {
         <Logo />
         <div className="flex items-center gap-2">
           <Link to="/pricing" className="text-sm text-slate-400 hover:text-white px-4 py-1.5 rounded-lg transition-colors">Pricing</Link>
-          <Link to="/login" className="text-sm text-slate-300 hover:text-white px-4 py-1.5 rounded-lg transition-colors">Sign In</Link>
-          <Link to="/signup" className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg transition-colors">Get Started</Link>
+          <Link to="/login" className="text-sm text-slate-500 hover:text-slate-300 px-4 py-1.5 rounded-lg transition-colors">Sign In</Link>
+          <button onClick={handleDemo} disabled={demoLoading} className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg transition-colors">
+            {demoLoading ? 'Loading…' : 'Try the Demo'}
+          </button>
         </div>
       </nav>
 
@@ -353,12 +370,10 @@ export default function Landing() {
           </p>
 
           <div className="flex items-center gap-3 mb-8">
-            <Link to="/signup" className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-indigo-500/20">
-              Start Free Trial
-            </Link>
-            <Link to="/login" className="text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-6 py-2.5 rounded-xl text-sm transition-colors">
-              Sign In
-            </Link>
+            <button onClick={handleDemo} disabled={demoLoading} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-indigo-500/20">
+              {demoLoading ? 'Loading…' : 'Try the Demo'}
+            </button>
+            <span className="text-xs text-slate-500">No sign-up required</span>
           </div>
 
           <div className="space-y-3">
