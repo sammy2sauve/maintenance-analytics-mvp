@@ -8,7 +8,6 @@ These endpoints can be integrated into the main API or run standalone.
 """
 
 import math
-import pandas as pd
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Union
 from fastapi import APIRouter, HTTPException, Query
