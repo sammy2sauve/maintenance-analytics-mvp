@@ -1,0 +1,21 @@
+name: Refresh Demo Dates
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6am UTC
+  workflow_dispatch:      # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll demo data dates forward
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "X-Admin-Secret: ${{ secrets.ADMIN_SECRET }}" \
+            https://maintenance-analytics-mvp.onrender.com/admin/refresh-demo-dates)
+          echo "HTTP status: $response"
+          if [ "$response" != "200" ]; then
+            echo "Refresh failed with status $response"
+            exit 1
+          fi

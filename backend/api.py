@@ -10,9 +10,10 @@ Run with: uvicorn backend.api:app --reload
 from dotenv import load_dotenv
 load_dotenv()
 
+import os
 from typing import List, Dict, Any, Optional, Union
 from datetime import date, datetime as dt
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -105,6 +106,18 @@ app.mount("/mock-fw", mock_fw_app)
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok"}
+
+
+@app.post("/admin/refresh-demo-dates", tags=["Admin"])
+async def refresh_demo_dates_endpoint(request: Request):
+    """Roll demo data dates forward so the app always shows fresh data. Protected by ADMIN_SECRET."""
+    secret = request.headers.get("X-Admin-Secret", "")
+    expected = os.environ.get("ADMIN_SECRET", "")
+    if not expected or secret != expected:
+        raise HTTPException(403, "Forbidden")
+    from .refresh_demo_dates import refresh_demo_dates
+    result = refresh_demo_dates()
+    return result
 
 
 @app.get("/", tags=["Root"])
