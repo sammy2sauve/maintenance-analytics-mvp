@@ -45,9 +45,27 @@ class _PooledConnection:
         return getattr(self._conn, name)
 
 
+def _get_live_conn():
+    """Get a connection from the pool, replacing it if Neon has closed it."""
+    conn = _pool.getconn()
+    try:
+        conn.cursor().execute("SELECT 1")
+    except Exception:
+        # Stale connection — discard and open a fresh one
+        try:
+            _pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        conn = psycopg2.connect(
+            DATABASE_URL,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+        )
+    return conn
+
+
 def get_conn():
     """Get a pooled connection. Call conn.close() to return it to the pool."""
-    return _PooledConnection(_pool.getconn())
+    return _PooledConnection(_get_live_conn())
 
 
 @contextmanager
@@ -61,7 +79,7 @@ def get_db():
             cur = conn.cursor()
             cur.execute("SELECT 1")
     """
-    conn = _pool.getconn()
+    conn = _get_live_conn()
     try:
         yield conn
         conn.commit()
