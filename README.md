@@ -6,7 +6,7 @@ Maintenance teams lose hours every week chasing false alarms and reacting to une
 
 ---
 
-![TrueSignal Overview](docs/screenshots/overview.png)
+[![TrueSignal Overview — click to try the live demo](docs/screenshots/overview.png)](https://truesignalapp.com)
 
 ---
 
@@ -29,31 +29,31 @@ Most CMMS tools are good at recording what happened. None of them tell you what'
 
 After signing in, you're prompted to connect your FaciliWorks instance. Enter your site's base URL and API key — TrueSignal stores the key encrypted at rest and immediately runs an initial sync.
 
-![Connect FaciliWorks](docs/screenshots/connect.png)
+[![Connect FaciliWorks](docs/screenshots/connect.png)](https://truesignalapp.com)
 
 ### 2. Sync Runs
 
 The sync pulls assets, corrective maintenance work orders, and PM records from FaciliWorks via their REST API. The prediction pipeline processes each asset's work order history — failure frequency, PM compliance, time between failures — and scores every asset.
 
-![Sync in progress](docs/screenshots/sync.png)
+[![Sync in progress](docs/screenshots/sync.png)](https://truesignalapp.com)
 
 ### 3. Overview Dashboard
 
 The main dashboard shows your fleet's health score, risk distribution, and the assets that need attention today. Filterable by 7 / 30 / 90 days or all time.
 
-![Overview dashboard](docs/screenshots/overview.png)
+[![Overview dashboard](docs/screenshots/overview.png)](https://truesignalapp.com)
 
 ### 4. Asset Health
 
 Every monitored asset ranked by failure risk. CRITICAL and HIGH assets surface at the top with clear urgency signals. Drill into any asset to see its prediction detail and work order history.
 
-![Asset health](docs/screenshots/asset-health.png)
+[![Asset health](docs/screenshots/asset-health.png)](https://truesignalapp.com)
 
 ### 5. PM Planner
 
 AI-generated PM schedule recommendations you can accept, defer, or push directly back to FaciliWorks as a new work order — closing the loop without leaving TrueSignal.
 
-![PM Planner](docs/screenshots/pm-planner.png)
+[![PM Planner](docs/screenshots/pm-planner.png)](https://truesignalapp.com)
 
 ---
 
