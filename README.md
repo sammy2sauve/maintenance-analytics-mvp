@@ -2,7 +2,11 @@
 
 Maintenance teams lose hours every week chasing false alarms and reacting to unexpected failures. TrueSignal connects to FaciliWorks, analyzes work order history, and tells you which assets are going to fail — before they do.
 
-**[Live demo →](https://truesignalapp.com)**
+**[→ Try the live demo](https://truesignalapp.com)** — no sign-up required
+
+---
+
+![TrueSignal Overview](docs/screenshots/overview.png)
 
 ---
 
@@ -14,25 +18,66 @@ Most CMMS tools are good at recording what happened. None of them tell you what'
 
 - **Failure predictions** — Every asset scored CRITICAL / HIGH / MEDIUM / LOW with estimated days to failure
 - **PM optimization** — Identifies over- and under-maintained assets, generates adjusted PM schedules
-- **KPI intelligence** — Strips out rushed completions and data quality distortions to show you real metrics
+- **KPI intelligence** — Strips out rushed completions and data quality distortions to show real metrics
 - **AI insights** — Plain-language summaries of what's happening across your fleet
 
 ---
 
-## Live Demo
+## How It Works — From Onboarding to Insights
 
-Click **Try the Demo** at [truesignalapp.com](https://truesignalapp.com). No sign-up required — loads a pre-seeded hospital facility (Meridian Medical Center, 29 assets).
+### 1. Connect FaciliWorks
 
-To test the FaciliWorks connection yourself, create a free account and enter these credentials in Settings:
+After signing in, you're prompted to connect your FaciliWorks instance. Enter your site's base URL and API key — TrueSignal stores the key encrypted at rest and immediately runs an initial sync.
+
+![Connect FaciliWorks](docs/screenshots/connect.png)
+
+### 2. Sync Runs
+
+The sync pulls assets, corrective maintenance work orders, and PM records from FaciliWorks via their REST API. The prediction pipeline processes each asset's work order history — failure frequency, PM compliance, time between failures — and scores every asset.
+
+![Sync in progress](docs/screenshots/sync.png)
+
+### 3. Overview Dashboard
+
+The main dashboard shows your fleet's health score, risk distribution, and the assets that need attention today. Filterable by 7 / 30 / 90 days or all time.
+
+![Overview dashboard](docs/screenshots/overview.png)
+
+### 4. Asset Health
+
+Every monitored asset ranked by failure risk. CRITICAL and HIGH assets surface at the top with clear urgency signals. Drill into any asset to see its prediction detail and work order history.
+
+![Asset health](docs/screenshots/asset-health.png)
+
+### 5. PM Planner
+
+AI-generated PM schedule recommendations you can accept, defer, or push directly back to FaciliWorks as a new work order — closing the loop without leaving TrueSignal.
+
+![PM Planner](docs/screenshots/pm-planner.png)
+
+---
+
+## Simulating FaciliWorks for Demo & Testing
+
+FaciliWorks exposes a REST API used by their web client — paginated JSON endpoints with `X-API-KEY` header authentication and a `loadOptions` query parameter that controls pagination (skip/take), filtering, and sorting.
+
+Rather than requiring a live FaciliWorks license to run the app, we built a mock server (`backend/mock_faciliworks.py`) that replicates the exact FaciliWorks API contract by reading their documentation:
+
+- `GET /v1/assets` — returns 29 assets in FaciliWorks equipment format
+- `GET /v1/cm` — returns corrective maintenance work orders
+- `GET /v1/pm` — returns preventive maintenance work orders
+- `POST /v1/cm` — creates a new work order (used by the PM push feature)
+
+The mock generates realistic hospital CMMS data deterministically (`random.seed(42)`) — the same 29 assets and ~250 work orders every time, so test results are reproducible. It's mounted on the production backend at `/mock-fw`, which means anyone can connect to it to test the full pipeline end-to-end without a FaciliWorks account.
+
+**To test it yourself:** sign up for a free account, go to Settings, and enter:
 
 | Field | Value |
 |---|---|
 | Base URL | `https://maintenance-analytics-mvp.onrender.com/mock-fw` |
 | API Key | `demo-key` |
 
-This connects to a mock FaciliWorks server that returns realistic work order and asset data, then runs the full prediction pipeline.
-
-**[FaciliWorks API documentation →](https://faciliworks.com/api-documentation)**
+This runs a real sync and prediction pipeline against mock data — you'll see the full onboarding flow, not a pre-loaded state.
 
 ---
 
@@ -42,9 +87,9 @@ This connects to a mock FaciliWorks server that returns realistic work order and
 |---|---|---|
 | Frontend | React + Vite + Tailwind + Recharts | Fast iteration, no runtime overhead |
 | Backend | FastAPI (Python) | Async-friendly, great for data-heavy endpoints |
-| Database | Neon PostgreSQL | Serverless Postgres with connection pooling — free tier handles demo traffic |
+| Database | Neon PostgreSQL | Serverless Postgres with connection pooling |
 | Auth | JWT (python-jose) | Stateless, works across free-tier deployments that spin down |
-| Deployment | Vercel (frontend) + Render (backend) | Both have free tiers that survive a portfolio project's traffic |
+| Deployment | Vercel (frontend) + Render (backend) | Both free tiers survive portfolio project traffic |
 
 ---
 
@@ -57,62 +102,55 @@ FastAPI (Render)
     ├── /auth         JWT auth, demo login
     ├── /predictions  Failure predictions + PM suggestions
     ├── /kpis         Daily/weekly/monthly KPI aggregates
-    ├── /settings     FaciliWorks credential storage (encrypted at rest)
+    ├── /settings     FaciliWorks credential storage (AES-256 encrypted)
     ├── /reports      PDF/CSV export
-    └── /mock-fw      Mock FaciliWorks API for demo/testing
+    └── /mock-fw      Mock FaciliWorks API (replicates real API contract)
     ↓
 Neon PostgreSQL
-    ├── orgs / locations / users (multi-tenant)
+    ├── orgs / locations / users  (multi-tenant, all data scoped to location_id)
     ├── asset_failure_predictions
     ├── pm_optimization_suggestions
     └── work_orders / kpi_daily / kpi_weekly
 ```
 
-**Multi-tenant:** Every data row is scoped to a `location_id`. One database, fully isolated tenants.
-
-**Demo mode:** `/auth/demo` issues a short-lived JWT for a read-only pre-seeded location. No credentials required.
-
 ---
 
 ## Key Technical Decisions
 
-**Why encrypt API keys at rest?** FaciliWorks credentials give read access to a customer's entire CMMS. Storing them in plaintext in a shared Postgres instance would be a single point of compromise. Keys are AES-256 encrypted before write, decrypted only in the sync worker.
+**Why encrypt API keys at rest?** FaciliWorks credentials give read access to a customer's entire CMMS. Storing them in plaintext in a shared database would be a single point of compromise. Keys are AES-256 encrypted before write, decrypted only inside the sync worker — never returned to the frontend.
 
 **Why a separate prediction pipeline instead of in-request computation?** Failure scoring runs across months of work order history per asset. Running that synchronously on every page load would make the app unusable. Instead, predictions are precomputed on sync and served as simple table reads.
 
-**Why mock FaciliWorks?** Testing against a live CMMS account is slow and risky (real work orders could be modified). The mock server returns deterministic data in the exact FaciliWorks API format, letting the full adapter→pipeline→predictions stack run in CI with no external dependencies.
+**Why a mock FaciliWorks server instead of fixtures?** Fixtures only test one layer. The mock server lets the full chain — HTTP adapter → data normalization → pipeline → predictions → API → frontend — run against a realistic data source in a single `uvicorn` process. It also means anyone can demo the real connection flow without a FaciliWorks license.
 
 ---
 
 ## Local Setup
 
 ```bash
-# 1. Clone and create .env
+# 1. Clone and configure
 cp .env.example .env
-# Fill in DATABASE_URL (Postgres), SECRET_KEY (any random string)
+# Fill in: DATABASE_URL (Postgres), SECRET_KEY (any random string)
 
 # 2. Backend
-cd backend
 pip install -r requirements.txt
 uvicorn backend.api:app --reload
 # → http://localhost:8000
 
 # 3. Frontend
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 # → http://localhost:5173
 
-# 4. (Optional) Mock FaciliWorks server
+# 4. Mock FaciliWorks (optional — or use the hosted one above)
 uvicorn backend.mock_faciliworks:app --port 8001 --reload
-# Then in Settings: Base URL = http://localhost:8001, API Key = any-string
+# Settings → Base URL: http://localhost:8001, API Key: any-string
 ```
 
 ---
 
 ## What I'd Do Next
 
-- **Rate limiting** — Add slowapi middleware to protect the free-tier backend from traffic spikes
-- **Webhook sync** — Replace manual sync button with FaciliWorks webhook push for real-time predictions
-- **More CMMS adapters** — MaintainX and Limble share similar work order schemas; the adapter pattern is already in place
-- **Anomaly detection** — Replace heuristic failure scoring with a lightweight LSTM trained on historical breakdown patterns
+- **Rate limiting** — slowapi middleware to protect the Render free tier from traffic spikes
+- **Webhook sync** — replace the manual sync button with FaciliWorks webhooks for real-time predictions
+- **More CMMS adapters** — MaintainX and Limble share similar schemas; the adapter pattern is already in place
+- **Anomaly detection** — replace heuristic failure scoring with a lightweight model trained on historical breakdown patterns

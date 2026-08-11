@@ -6,7 +6,7 @@ import { CheckCircle2, Circle, ArrowRight, X } from 'lucide-react';
 const DISMISS_KEY = 'ts_onboarding_dismissed';
 
 export default function OnboardingBanner() {
-  const { hasApiKey, isDemo } = useAuth();
+  const { hasApiKey } = useAuth();
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISS_KEY) === '1'
@@ -22,7 +22,7 @@ export default function OnboardingBanner() {
     }
   }, [hasApiKey]);
 
-  if (dismissed || hasApiKey || isDemo) return null;
+  if (dismissed || hasApiKey) return null;
 
   const dismiss = () => {
     setHiding(true);

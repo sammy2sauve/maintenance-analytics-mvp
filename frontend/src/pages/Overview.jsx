@@ -275,7 +275,7 @@ function OverviewSkeleton() {
 }
 
 export default function Overview({ dateRange }) {
-  const { hasApiKey, isDemo, locationId, syncVersion } = useAuth();
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
@@ -327,10 +327,10 @@ export default function Overview({ dateRange }) {
   };
 
   useEffect(() => {
-    if (hasApiKey || isDemo) load();
-  }, [dateRange, hasApiKey, isDemo, syncVersion]);
+    if (hasApiKey) load();
+  }, [dateRange, hasApiKey, syncVersion]);
 
-  if (!hasApiKey && !isDemo) return (
+  if (!hasApiKey) return (
     <GatedView
       title="Fleet overview"
       description="Connect FaciliWorks to see your live KPIs, risk distribution, maintenance health score, and AI-generated insights."

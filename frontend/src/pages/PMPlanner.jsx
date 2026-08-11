@@ -101,7 +101,7 @@ function PMPlannerSkeleton() {
 }
 
 export default function PMPlanner() {
-  const { hasApiKey, isDemo, locationId, syncVersion } = useAuth();
+  const { hasApiKey, locationId, syncVersion } = useAuth();
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -125,9 +125,9 @@ export default function PMPlanner() {
     }
   };
 
-  useEffect(() => { if (hasApiKey || isDemo) load(); }, [hasApiKey, isDemo, locationId, syncVersion]);
+  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, locationId, syncVersion]);
 
-  if (!hasApiKey && !isDemo) return (
+  if (!hasApiKey) return (
     <GatedView
       title="PM Planner"
       description="Connect FaciliWorks to get AI-generated PM schedule recommendations you can review, accept, and push directly to your CMMS."
