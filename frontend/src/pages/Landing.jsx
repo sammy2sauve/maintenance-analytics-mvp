@@ -288,9 +288,6 @@ const FEATURES = [
 
 const CMMS = [
   { name: 'FaciliWorks', color: 'text-indigo-300' },
-  { name: 'MaintainX',   color: 'text-emerald-300' },
-  { name: 'Limble',      color: 'text-slate-400' },
-  { name: 'UpKeep',      color: 'text-slate-400' },
 ];
 
 function Logo() {

@@ -134,7 +134,7 @@ function AssetHealthSkeleton() {
 }
 
 export default function AssetHealth({ dateRange }) {
-  const { hasApiKey, locationId, syncVersion } = useAuth();
+  const { hasApiKey, isDemo, locationId, syncVersion } = useAuth();
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [predictions, setPredictions] = useState([]);
@@ -168,9 +168,9 @@ export default function AssetHealth({ dateRange }) {
   // Asset Health is a current-state view — ignore the date range filter.
   // We fetch ALL predictions and deduplicate to the most recent per asset,
   // so the total count is stable and reflects the full monitored fleet.
-  useEffect(() => { if (hasApiKey) load(); }, [hasApiKey, syncVersion]);
+  useEffect(() => { if (hasApiKey || isDemo) load(); }, [hasApiKey, isDemo, syncVersion]);
 
-  if (!hasApiKey) return (
+  if (!hasApiKey && !isDemo) return (
     <GatedView
       title="Asset health"
       description="Connect FaciliWorks to see per-asset risk scores, CRITICAL/HIGH alerts, and your Act Now priority list."
