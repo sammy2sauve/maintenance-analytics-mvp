@@ -1,5 +1,8 @@
 {
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm --prefix frontend install"
+  "installCommand": "npm --prefix frontend install",
+  "env": {
+    "VITE_API_URL": "https://maintenance-analytics-mvp.onrender.com"
+  }
 }
