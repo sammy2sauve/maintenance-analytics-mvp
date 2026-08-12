@@ -8,9 +8,10 @@ Multi-tenant: API key belongs to a LOCATION, not a user.
 Frontend sends location_id to specify which location to configure.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from .ratelimit import limiter
 
 from .auth import (
     decode_token,
@@ -122,7 +123,9 @@ def remove_key(
 
 
 @router.post("/maintainx-sync")
+@limiter.limit("5/minute")
 def trigger_sync(
+    request: Request,
     location_id: int = Query(None),
     user_id: int = Depends(_current_user_id),
 ):
@@ -232,7 +235,9 @@ def remove_fw_key(
 
 
 @router.post("/faciliworks-sync")
+@limiter.limit("5/minute")
 def trigger_fw_sync(
+    request: Request,
     location_id: int = Query(None),
     user_id: int = Depends(_current_user_id),
 ):

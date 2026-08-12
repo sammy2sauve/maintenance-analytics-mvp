@@ -17,6 +17,9 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 
 # Import database utilities
@@ -28,6 +31,7 @@ from .db import (
     DatabaseError
 )
 # Add this with your other imports
+from .ratelimit import limiter
 from .api_predictions import router as predictions_router
 from .api_auth import router as auth_router
 from .api_settings import router as settings_router
@@ -71,6 +75,9 @@ app = FastAPI(
     description="Read-only API for accessing calculated maintenance KPIs",
     version="1.0.0"
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # ADD CORS MIDDLEWARE
 _ALLOWED_ORIGINS = [

@@ -3,9 +3,10 @@ Auth endpoints -- /auth/signup, /auth/login, /auth/me
 """
 
 import os
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+from .ratelimit import limiter
 
 DEMO_EMAIL = os.environ.get("DEMO_EMAIL", "support@truesignalapp.com")
 
@@ -58,7 +59,8 @@ class AuthResponse(BaseModel):
 # -- Endpoints ----------------------------------------------------------------
 
 @router.post("/signup", response_model=AuthResponse)
-def signup(body: SignupRequest):
+@limiter.limit("10/minute")
+def signup(request: Request, body: SignupRequest):
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
     if get_user_by_email(body.email):
@@ -103,7 +105,8 @@ def verify_email(token: str):
 
 
 @router.post("/forgot-password")
-def forgot_password(body: ForgotPasswordRequest):
+@limiter.limit("5/minute")
+def forgot_password(request: Request, body: ForgotPasswordRequest):
     token = create_password_reset_token(body.email)
     if token:
         user = get_user_by_email(body.email)
@@ -113,7 +116,8 @@ def forgot_password(body: ForgotPasswordRequest):
 
 
 @router.post("/reset-password")
-def reset_password(body: ResetPasswordRequest):
+@limiter.limit("5/minute")
+def reset_password(request: Request, body: ResetPasswordRequest):
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
     user = reset_password_with_token(body.token, body.password)
@@ -123,7 +127,8 @@ def reset_password(body: ResetPasswordRequest):
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(body: LoginRequest):
+@limiter.limit("10/minute")
+def login(request: Request, body: LoginRequest):
     user = get_user_by_email(body.email)
     if not user or not verify_password(body.password, user["hashed_password"]):
         raise HTTPException(401, "Invalid email or password")
@@ -142,7 +147,8 @@ def login(body: LoginRequest):
 
 
 @router.post("/demo", response_model=AuthResponse)
-def demo_login():
+@limiter.limit("20/minute")
+def demo_login(request: Request):
     """Return a fresh JWT for the read-only demo account. No credentials required."""
     user = get_user_by_email(DEMO_EMAIL)
     if not user:
