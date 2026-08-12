@@ -4,5 +4,6 @@
   "installCommand": "npm --prefix frontend install",
   "env": {
     "VITE_API_URL": "https://maintenance-analytics-mvp.onrender.com"
-  }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
