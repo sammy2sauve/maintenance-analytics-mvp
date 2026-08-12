@@ -150,7 +150,7 @@ uvicorn backend.mock_faciliworks:app --port 8001 --reload
 
 ## What I'd Do Next
 
-- **Rate limiting** — slowapi middleware to protect the Render free tier from traffic spikes
-- **Webhook sync** — replace the manual sync button with FaciliWorks webhooks for real-time predictions
-- **More CMMS adapters** — MaintainX and Limble share similar schemas; the adapter pattern is already in place
-- **Anomaly detection** — replace heuristic failure scoring with a lightweight model trained on historical breakdown patterns
+- **Webhook sync** — replace the manual sync button with FaciliWorks webhooks for real-time predictions; the sync pipeline is already idempotent so it could safely run on every incoming event
+- **More CMMS adapters** — MaintainX and Limble share similar schemas; the HTTP adapter pattern is already in place so adding a new source is mostly a field-mapping exercise
+- **Anomaly detection** — replace the heuristic failure scoring (frequency + MTBF thresholds) with a lightweight model trained on historical breakdown patterns; the labeled work order history is already in the DB
+- **Tenant-level dashboards** — the multi-tenant schema supports multiple locations per org, but the UI only shows one at a time; adding a fleet-wide rollup view would serve enterprise buyers without schema changes
