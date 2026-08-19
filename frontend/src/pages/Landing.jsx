@@ -320,17 +320,23 @@ export default function Landing() {
   const { loginAsDemo } = useAuth();
   const navigate = useNavigate();
   const [demoLoading, setDemoLoading] = useState(false);
-  const [demoError, setDemoError] = useState('');
+  const [demoSlow, setDemoSlow]       = useState(false);
+  const [demoError, setDemoError]     = useState('');
 
   const handleDemo = async () => {
     setDemoLoading(true);
+    setDemoSlow(false);
     setDemoError('');
+    const slowTimer = setTimeout(() => setDemoSlow(true), 5000);
     try {
       await loginAsDemo();
+      clearTimeout(slowTimer);
       navigate('/dashboard/');
     } catch (err) {
-      setDemoError('Could not load demo — please try again in a moment.');
+      clearTimeout(slowTimer);
+      setDemoError('Server is warming up — please try again in 10 seconds.');
       setDemoLoading(false);
+      setDemoSlow(false);
     }
   };
 
@@ -342,7 +348,7 @@ export default function Landing() {
         <Logo />
         <div className="flex items-center gap-2">
           <button onClick={handleDemo} disabled={demoLoading} className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg transition-colors">
-            {demoLoading ? 'Loading…' : 'Try the Demo'}
+            {demoLoading ? (demoSlow ? 'Warming up…' : 'Loading…') : 'Try the Demo'}
           </button>
         </div>
       </nav>
@@ -369,7 +375,7 @@ export default function Landing() {
 
           <div className="flex items-center gap-3 mb-2">
             <button onClick={handleDemo} disabled={demoLoading} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-indigo-500/20">
-              {demoLoading ? 'Loading…' : 'Try the Demo'}
+              {demoLoading ? (demoSlow ? 'Warming up…' : 'Loading…') : 'Try the Demo'}
             </button>
             <span className="text-xs text-slate-500">No sign-up required</span>
           </div>

@@ -97,7 +97,7 @@ export function AuthProvider({ children }) {
   };
 
   const loginAsDemo = async () => {
-    const res = await api.post('/auth/demo');
+    const res = await api.post('/auth/demo', null, { timeout: 45000 });
     localStorage.setItem('ts_token', res.data.token);
     api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
     setUser(res.data.user);
