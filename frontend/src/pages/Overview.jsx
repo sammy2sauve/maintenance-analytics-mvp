@@ -274,6 +274,34 @@ function OverviewSkeleton() {
   );
 }
 
+const CACHE_KEY = 'ts_overview_cache';
+
+function applyApiResults(results, setters) {
+  const [dashboardRes, kpisRes, predictionsRes, woRes, woStatsRes] = results;
+  const { setDashboardData, setDailyKPIs, setFailurePredictions, setRecentWOs, setWoStats } = setters;
+
+  setDashboardData(dashboardRes.data);
+
+  const kpiMap = new Map();
+  (kpisRes.data || []).forEach(k => {
+    if (!kpiMap.has(k.kpi_name) || k.period_date > kpiMap.get(k.kpi_name).period_date) {
+      kpiMap.set(k.kpi_name, k);
+    }
+  });
+  setDailyKPIs(Array.from(kpiMap.values()).sort((a, b) => a.kpi_name.localeCompare(b.kpi_name)));
+
+  const latestByAsset = new Map();
+  (predictionsRes.data || []).forEach(p => {
+    const existing = latestByAsset.get(p.asset_id);
+    if (!existing || (p.prediction_date ?? '') > (existing.prediction_date ?? '')) {
+      latestByAsset.set(p.asset_id, p);
+    }
+  });
+  setFailurePredictions(Array.from(latestByAsset.values()));
+  setRecentWOs(woRes.data || []);
+  setWoStats(woStatsRes.data || { open_count: 0, pm_compliance_pct: 0, reactive_rate_pct: 0 });
+}
+
 export default function Overview({ dateRange }) {
   const { hasApiKey, locationId, syncVersion } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -284,14 +312,16 @@ export default function Overview({ dateRange }) {
   const [recentWOs, setRecentWOs] = useState([]);
   const [woStats, setWoStats] = useState({ open_count: 0, pm_compliance_pct: 0, reactive_rate_pct: 0 });
 
-  const load = async () => {
+  const setters = { setDashboardData, setDailyKPIs, setFailurePredictions, setRecentWOs, setWoStats };
+
+  const load = async (background = false) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       setError(null);
 
       const timeParams = dateRange ? { days: dateRange } : {};
       const locParam = locationId ? { location_id: locationId } : {};
-      const [dashboardRes, kpisRes, predictionsRes, woRes, woStatsRes] = await Promise.all([
+      const results = await Promise.all([
         getPredictions.dashboard(),
         getKPIs.daily({ limit: 100, ...timeParams, ...locParam }),
         getPredictions.failures({ limit: 1000, ...timeParams, ...locParam }),
@@ -299,35 +329,43 @@ export default function Overview({ dateRange }) {
         getWorkOrders.stats({ ...locParam }),
       ]);
 
-      setDashboardData(dashboardRes.data);
+      applyApiResults(results, setters);
 
-      const kpiMap = new Map();
-      (kpisRes.data || []).forEach(k => {
-        if (!kpiMap.has(k.kpi_name) || k.period_date > kpiMap.get(k.kpi_name).period_date) {
-          kpiMap.set(k.kpi_name, k);
-        }
-      });
-      setDailyKPIs(Array.from(kpiMap.values()).sort((a, b) => a.kpi_name.localeCompare(b.kpi_name)));
-      // Deduplicate to latest prediction per asset within the date window
-      const latestByAsset = new Map();
-      (predictionsRes.data || []).forEach(p => {
-        const existing = latestByAsset.get(p.asset_id);
-        if (!existing || (p.prediction_date ?? '') > (existing.prediction_date ?? '')) {
-          latestByAsset.set(p.asset_id, p);
-        }
-      });
-      setFailurePredictions(Array.from(latestByAsset.values()));
-      setRecentWOs(woRes.data || []);
-      setWoStats(woStatsRes.data || { open_count: 0, pm_compliance_pct: 0, reactive_rate_pct: 0 });
+      // Persist to cache (store raw .data payloads)
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          dateRange,
+          ts: Date.now(),
+          data: results.map(r => r.data),
+        }));
+      } catch (_) {}
     } catch (err) {
-      setError(err.message);
+      if (!background) setError(err.message);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (hasApiKey) load();
+    if (!hasApiKey) return;
+
+    // Try to restore cache for the same dateRange for instant display
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached.dateRange === dateRange && cached.data?.length === 5) {
+          const fakeResults = cached.data.map(d => ({ data: d }));
+          applyApiResults(fakeResults, setters);
+          setLoading(false);
+          // Revalidate silently in background
+          load(true);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    load(false);
   }, [dateRange, hasApiKey, syncVersion]);
 
   if (!hasApiKey) return (
@@ -338,13 +376,7 @@ export default function Overview({ dateRange }) {
     />
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-300 text-xl animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+  if (loading) return <OverviewSkeleton />;
 
   if (error) {
     return (
@@ -352,7 +384,7 @@ export default function Overview({ dateRange }) {
         <div className="text-red-400 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-4" />
           <p>Error: {error}</p>
-          <button onClick={load} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Retry</button>
+          <button onClick={() => load(false)} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Retry</button>
         </div>
       </div>
     );

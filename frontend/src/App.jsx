@@ -1,24 +1,33 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Nav from './components/Nav';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
 import Overview from './pages/Overview';
-import AssetHealth from './pages/AssetHealth';
-import PMPlanner from './pages/PMPlanner';
-import Help from './pages/Help';
-import Settings from './pages/Settings';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 import SupportChat from './components/SupportChat';
 import OnboardingBanner from './components/OnboardingBanner';
 import TrialBanner from './components/TrialBanner';
-import Pricing from './pages/Pricing';
-import Upgrade from './pages/Upgrade';
 import './App.css';
+
+const Signup          = lazy(() => import('./pages/Signup'));
+const AssetHealth     = lazy(() => import('./pages/AssetHealth'));
+const PMPlanner       = lazy(() => import('./pages/PMPlanner'));
+const Help            = lazy(() => import('./pages/Help'));
+const Settings        = lazy(() => import('./pages/Settings'));
+const VerifyEmail     = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword   = lazy(() => import('./pages/ResetPassword'));
+const Pricing         = lazy(() => import('./pages/Pricing'));
+const Upgrade         = lazy(() => import('./pages/Upgrade'));
+
+function PageFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center bg-slate-950">
+      <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 // Pages where the date slicer doesn't apply
 const REALTIME_PATHS = ['/dashboard/assets', '/dashboard/pm-planner', '/dashboard/settings', '/dashboard/help'];
@@ -151,15 +160,17 @@ function Dashboard() {
       <TrialBanner />
       <div className="flex-1 overflow-hidden relative">
         <div className="pointer-events-none absolute top-0 left-0 right-0 h-10 z-10 bg-gradient-to-b from-slate-950 to-transparent" />
-        <Routes>
-          <Route path="/"            element={<Overview dateRange={dateRange} />} />
-          <Route path="/assets"      element={<AssetHealth />} />
-          <Route path="/pm-planner"  element={<PMPlanner />} />
-          <Route path="/help"        element={<Help />} />
-          <Route path="/upgrade"     element={<Upgrade />} />
-          <Route path="/settings"    element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
-          <Route path="*"            element={<Navigate to="/dashboard/" replace />} />
-        </Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/"            element={<Overview dateRange={dateRange} />} />
+            <Route path="/assets"      element={<AssetHealth />} />
+            <Route path="/pm-planner"  element={<PMPlanner />} />
+            <Route path="/help"        element={<Help />} />
+            <Route path="/upgrade"     element={<Upgrade />} />
+            <Route path="/settings"    element={<OwnerAdminRoute><Settings /></OwnerAdminRoute>} />
+            <Route path="*"            element={<Navigate to="/dashboard/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
       <SupportChat />
     </div>
@@ -170,22 +181,24 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/"        element={<Landing />} />
-          <Route path="/login"        element={<Login />} />
-          <Route path="/signup"       element={<Signup />} />
-          <Route path="/verify-email"    element={<VerifyEmail />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password"  element={<ResetPassword />} />
-          <Route path="/pricing"      element={<Pricing />} />
-          <Route path="/dashboard/*" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+          <Routes>
+            <Route path="/"        element={<Landing />} />
+            <Route path="/login"        element={<Login />} />
+            <Route path="/signup"       element={<Signup />} />
+            <Route path="/verify-email"    element={<VerifyEmail />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password"  element={<ResetPassword />} />
+            <Route path="/pricing"      element={<Pricing />} />
+            <Route path="/dashboard/*" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

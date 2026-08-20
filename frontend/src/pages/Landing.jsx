@@ -323,6 +323,12 @@ export default function Landing() {
   const [demoSlow, setDemoSlow]       = useState(false);
   const [demoError, setDemoError]     = useState('');
 
+  // Warm up the Render backend while the user reads the landing page
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_BASE}/health`, { method: 'GET' }).catch(() => {});
+  }, []);
+
   const handleDemo = async () => {
     setDemoLoading(true);
     setDemoSlow(false);

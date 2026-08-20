@@ -107,6 +107,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem('ts_token');
+    localStorage.removeItem('ts_overview_cache');
     delete api.defaults.headers.common['Authorization'];
     setUser(null);
     setLocationId(null);

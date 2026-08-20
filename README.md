@@ -4,6 +4,8 @@ Maintenance teams lose hours every week chasing false alarms and reacting to une
 
 **[→ Try the live demo](https://truesignalapp.com)** — no sign-up required
 
+> **Note:** The backend runs on Render's free tier, which spins down after 15 minutes of inactivity. The first request after a period of inactivity may take 20–30 seconds to respond. Subsequent requests are fast.
+
 ---
 
 [![TrueSignal Overview — click to try the live demo](docs/screenshots/overview.png)](https://truesignalapp.com)
